@@ -15,6 +15,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedClaimdeskRouteImport } from './routes/_authenticated/claimdesk'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -22,6 +23,7 @@ import { Route as AuthenticatedJobflowRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedPaychaserRouteImport } from './routes/_authenticated/paychaser'
 import { Route as AuthenticatedReportsnapRouteImport } from './routes/_authenticated/reportsnap'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSubtrackRouteImport } from './routes/_authenticated/subtrack'
 
 const IndexRoute = IndexRouteImport.update({
@@ -52,6 +54,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedBillingRoute = AuthenticatedBillingRouteImport.update({
   id: '/billing',
@@ -89,6 +96,11 @@ const AuthenticatedReportsnapRoute = AuthenticatedReportsnapRouteImport.update({
   path: '/reportsnap',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSubtrackRoute = AuthenticatedSubtrackRouteImport.update({
   id: '/subtrack',
   path: '/subtrack',
@@ -101,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/billing': typeof AuthenticatedBillingRoute
   '/claimdesk': typeof AuthenticatedClaimdeskRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -108,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/paychaser': typeof AuthenticatedPaychaserRoute
   '/reportsnap': typeof AuthenticatedReportsnapRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/subtrack': typeof AuthenticatedSubtrackRoute
 }
 export interface FileRoutesByTo {
@@ -116,6 +130,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/billing': typeof AuthenticatedBillingRoute
   '/claimdesk': typeof AuthenticatedClaimdeskRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -123,6 +138,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/paychaser': typeof AuthenticatedPaychaserRoute
   '/reportsnap': typeof AuthenticatedReportsnapRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/subtrack': typeof AuthenticatedSubtrackRoute
 }
 export interface FileRoutesById {
@@ -133,6 +149,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/billing': typeof AuthenticatedBillingRoute
   '/_authenticated/claimdesk': typeof AuthenticatedClaimdeskRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -140,6 +157,7 @@ export interface FileRoutesById {
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/paychaser': typeof AuthenticatedPaychaserRoute
   '/_authenticated/reportsnap': typeof AuthenticatedReportsnapRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/subtrack': typeof AuthenticatedSubtrackRoute
 }
 export interface FileRouteTypes {
@@ -150,6 +168,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/admin'
     | '/billing'
     | '/claimdesk'
     | '/dashboard'
@@ -157,6 +176,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/paychaser'
     | '/reportsnap'
+    | '/settings'
     | '/subtrack'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -165,6 +185,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/admin'
     | '/billing'
     | '/claimdesk'
     | '/dashboard'
@@ -172,6 +193,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/paychaser'
     | '/reportsnap'
+    | '/settings'
     | '/subtrack'
   id:
     | '__root__'
@@ -181,6 +203,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/_authenticated/admin'
     | '/_authenticated/billing'
     | '/_authenticated/claimdesk'
     | '/_authenticated/dashboard'
@@ -188,6 +211,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notifications'
     | '/_authenticated/paychaser'
     | '/_authenticated/reportsnap'
+    | '/_authenticated/settings'
     | '/_authenticated/subtrack'
   fileRoutesById: FileRoutesById
 }
@@ -244,6 +268,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/billing': {
       id: '/_authenticated/billing'
       path: '/billing'
@@ -293,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReportsnapRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/subtrack': {
       id: '/_authenticated/subtrack'
       path: '/subtrack'
@@ -304,6 +342,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedBillingRoute: typeof AuthenticatedBillingRoute
   AuthenticatedClaimdeskRoute: typeof AuthenticatedClaimdeskRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -311,10 +350,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedPaychaserRoute: typeof AuthenticatedPaychaserRoute
   AuthenticatedReportsnapRoute: typeof AuthenticatedReportsnapRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedSubtrackRoute: typeof AuthenticatedSubtrackRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedBillingRoute: AuthenticatedBillingRoute,
   AuthenticatedClaimdeskRoute: AuthenticatedClaimdeskRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
@@ -322,6 +363,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedPaychaserRoute: AuthenticatedPaychaserRoute,
   AuthenticatedReportsnapRoute: AuthenticatedReportsnapRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedSubtrackRoute: AuthenticatedSubtrackRoute,
 }
 
