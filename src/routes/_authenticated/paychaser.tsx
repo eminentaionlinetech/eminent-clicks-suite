@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, BellRing, CheckCircle2, Pencil, Plus, Receipt, Wallet } from "lucide-react";
+import { AlertTriangle, BellRing, CheckCircle2, MessageCircle, Pencil, Plus, Receipt, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -73,6 +73,11 @@ function PayChaser() {
     toast.success(`Invoice ${i.invoice_number} marked as paid.`);
     refresh();
   }
+  function whatsappReminder(i: Invoice) {
+    const od = invoiceIsOverdue(i);
+    const msg = `Hello ${i.customer}, this is a friendly reminder about invoice #${i.invoice_number} for ${formatNaira(i.amount_kobo)}, which was due on ${formatDate(i.due_date)}${od ? " and is now overdue" : ""}. Kindly make payment at your earliest convenience. Thank you!`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
+  }
   async function remove(id: string) {
     const { error } = await supabase.from("pc_invoices").delete().eq("id", id);
     if (error) return void toast.error(friendlyError(error, "Couldn't delete this invoice."));
@@ -119,6 +124,11 @@ function PayChaser() {
                           <p className="text-sm text-muted-foreground">{formatNaira(i.amount_kobo)} · Due {formatDate(i.due_date)}{i.paid_at && ` · Paid ${formatDate(i.paid_at)}`}</p>
                         </div>
                         <Pill tone={i.status === "paid" ? "success" : od ? "danger" : i.status === "draft" ? "muted" : "warning"}>{od ? "Overdue" : label(i.status)}</Pill>
+                        {i.status !== "paid" && (
+                          <Button size="sm" variant="outline" onClick={() => whatsappReminder(i)} aria-label={`Send WhatsApp reminder to ${i.customer}`}>
+                            <MessageCircle /> WhatsApp
+                          </Button>
+                        )}
                         {i.status !== "paid" && <Button size="sm" variant="outline" onClick={() => markPaid(i)}>Mark paid</Button>}
                         <Button size="sm" variant="ghost" onClick={() => setReminderFor(i)}><BellRing /> Reminders</Button>
                         <Button variant="ghost" size="icon" aria-label="Edit" onClick={() => setEditing(i)}><Pencil /></Button>
