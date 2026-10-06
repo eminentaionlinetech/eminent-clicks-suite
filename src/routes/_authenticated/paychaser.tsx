@@ -73,6 +73,11 @@ function PayChaser() {
     toast.success(`Invoice ${i.invoice_number} marked as paid.`);
     refresh();
   }
+  function whatsappReminder(i: Invoice) {
+    const od = invoiceIsOverdue(i);
+    const msg = `Hello ${i.customer}, this is a friendly reminder about invoice #${i.invoice_number} for ${formatNaira(i.amount_kobo)}, which was due on ${formatDate(i.due_date)}${od ? " and is now overdue" : ""}. Kindly make payment at your earliest convenience. Thank you!`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
+  }
   async function remove(id: string) {
     const { error } = await supabase.from("pc_invoices").delete().eq("id", id);
     if (error) return void toast.error(friendlyError(error, "Couldn't delete this invoice."));
