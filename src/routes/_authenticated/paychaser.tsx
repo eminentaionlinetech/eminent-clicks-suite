@@ -133,9 +133,14 @@ function PayChaser() {
                         </div>
                         <Pill tone={i.status === "paid" ? "success" : od ? "danger" : i.status === "draft" ? "muted" : "warning"}>{od ? "Overdue" : label(i.status)}</Pill>
                         {i.status !== "paid" && (
-                          <Button size="sm" variant="outline" onClick={() => whatsappReminder(i)} aria-label={`Send WhatsApp reminder to ${i.customer}`}>
-                            <MessageCircle /> WhatsApp
-                          </Button>
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => whatsappReminder(i)} aria-label={`Send WhatsApp reminder to ${i.customer}`}>
+                              <MessageCircle /> WhatsApp
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => emailReminder(i)} aria-label={`Send email reminder to ${i.customer}`}>
+                              <Mail /> Email
+                            </Button>
+                          </>
                         )}
                         {i.status !== "paid" && <Button size="sm" variant="outline" onClick={() => markPaid(i)}>Mark paid</Button>}
                         <Button size="sm" variant="ghost" onClick={() => setReminderFor(i)}><BellRing /> Reminders</Button>
