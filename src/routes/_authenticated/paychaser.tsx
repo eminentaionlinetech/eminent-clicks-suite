@@ -206,6 +206,7 @@ function InvoiceForm({ inv, onClose, onSaved }: { inv: Invoice | null; onClose: 
     <FormDialog open onOpenChange={(o) => !o && onClose()} title={inv ? "Edit invoice" : "New invoice"} onSubmit={save} submitting={busy}>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="cust" label="Customer" required error={errors.customer}><Input id="cust" value={f.customer} onChange={set("customer")} /></Field>
+        <Field id="custemail" label="Customer email" hint="Used by the Email reminder button."><Input id="custemail" type="email" value={f.customer_email} onChange={set("customer_email")} /></Field>
         <Field id="num" label="Invoice number" required error={errors.invoice_number}><Input id="num" value={f.invoice_number} onChange={set("invoice_number")} /></Field>
         <Field id="amt" label="Amount (₦)" required error={errors.amount}><Input id="amt" inputMode="decimal" value={f.amount} onChange={set("amount")} /></Field>
         <Field id="st" label="Status">
