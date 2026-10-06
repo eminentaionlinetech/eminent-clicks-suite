@@ -73,10 +73,18 @@ function PayChaser() {
     toast.success(`Invoice ${i.invoice_number} marked as paid.`);
     refresh();
   }
-  function whatsappReminder(i: Invoice) {
+  function reminderMessage(i: Invoice) {
     const od = invoiceIsOverdue(i);
-    const msg = `Hello ${i.customer}, this is a friendly reminder about invoice #${i.invoice_number} for ${formatNaira(i.amount_kobo)}, which was due on ${formatDate(i.due_date)}${od ? " and is now overdue" : ""}. Kindly make payment at your earliest convenience. Thank you!`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
+    return `Hello ${i.customer}, this is a friendly reminder about invoice #${i.invoice_number} for ${formatNaira(i.amount_kobo)}, which was due on ${formatDate(i.due_date)}${od ? " and is now overdue" : ""}. Kindly make payment at your earliest convenience. Thank you!`;
+  }
+  function whatsappReminder(i: Invoice) {
+    window.open(`https://wa.me/?text=${encodeURIComponent(reminderMessage(i))}`, "_blank", "noopener");
+  }
+  function emailReminder(i: Invoice) {
+    const subject = `Payment reminder — invoice #${i.invoice_number}`;
+    const mailto = `mailto:${i.customer_email ?? ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(reminderMessage(i))}`;
+    window.location.href = mailto;
+    toast.success(i.customer_email ? "Opening your email app with the reminder." : "Opening your email app — choose the customer as the recipient.");
   }
   async function remove(id: string) {
     const { error } = await supabase.from("pc_invoices").delete().eq("id", id);
