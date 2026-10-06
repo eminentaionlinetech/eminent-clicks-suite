@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, BellRing, CheckCircle2, Pencil, Plus, Receipt, Wallet } from "lucide-react";
+import { AlertTriangle, BellRing, CheckCircle2, MessageCircle, Pencil, Plus, Receipt, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
