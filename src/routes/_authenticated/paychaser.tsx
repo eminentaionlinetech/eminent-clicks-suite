@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, BellRing, CheckCircle2, MessageCircle, Pencil, Plus, Receipt, Wallet } from "lucide-react";
+import { AlertTriangle, BellRing, CheckCircle2, Mail, MessageCircle, Pencil, Plus, Receipt, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -73,10 +73,18 @@ function PayChaser() {
     toast.success(`Invoice ${i.invoice_number} marked as paid.`);
     refresh();
   }
-  function whatsappReminder(i: Invoice) {
+  function reminderMessage(i: Invoice) {
     const od = invoiceIsOverdue(i);
-    const msg = `Hello ${i.customer}, this is a friendly reminder about invoice #${i.invoice_number} for ${formatNaira(i.amount_kobo)}, which was due on ${formatDate(i.due_date)}${od ? " and is now overdue" : ""}. Kindly make payment at your earliest convenience. Thank you!`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
+    return `Hello ${i.customer}, this is a friendly reminder about invoice #${i.invoice_number} for ${formatNaira(i.amount_kobo)}, which was due on ${formatDate(i.due_date)}${od ? " and is now overdue" : ""}. Kindly make payment at your earliest convenience. Thank you!`;
+  }
+  function whatsappReminder(i: Invoice) {
+    window.open(`https://wa.me/?text=${encodeURIComponent(reminderMessage(i))}`, "_blank", "noopener");
+  }
+  function emailReminder(i: Invoice) {
+    const subject = `Payment reminder — invoice #${i.invoice_number}`;
+    const mailto = `mailto:${i.customer_email ?? ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(reminderMessage(i))}`;
+    window.location.href = mailto;
+    toast.success(i.customer_email ? "Opening your email app with the reminder." : "Opening your email app — choose the customer as the recipient.");
   }
   async function remove(id: string) {
     const { error } = await supabase.from("pc_invoices").delete().eq("id", id);
@@ -125,9 +133,14 @@ function PayChaser() {
                         </div>
                         <Pill tone={i.status === "paid" ? "success" : od ? "danger" : i.status === "draft" ? "muted" : "warning"}>{od ? "Overdue" : label(i.status)}</Pill>
                         {i.status !== "paid" && (
-                          <Button size="sm" variant="outline" onClick={() => whatsappReminder(i)} aria-label={`Send WhatsApp reminder to ${i.customer}`}>
-                            <MessageCircle /> WhatsApp
-                          </Button>
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => whatsappReminder(i)} aria-label={`Send WhatsApp reminder to ${i.customer}`}>
+                              <MessageCircle /> WhatsApp
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => emailReminder(i)} aria-label={`Send email reminder to ${i.customer}`}>
+                              <Mail /> Email
+                            </Button>
+                          </>
                         )}
                         {i.status !== "paid" && <Button size="sm" variant="outline" onClick={() => markPaid(i)}>Mark paid</Button>}
                         <Button size="sm" variant="ghost" onClick={() => setReminderFor(i)}><BellRing /> Reminders</Button>
@@ -151,6 +164,7 @@ function PayChaser() {
 function InvoiceForm({ inv, onClose, onSaved }: { inv: Invoice | null; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({
     customer: inv?.customer ?? "",
+    customer_email: inv?.customer_email ?? "",
     invoice_number: inv?.invoice_number ?? "",
     amount: inv ? String(inv.amount_kobo / 100) : "",
     issue_date: inv?.issue_date ?? todayISO(),
@@ -176,7 +190,7 @@ function InvoiceForm({ inv, onClose, onSaved }: { inv: Invoice | null; onClose: 
     if (Object.keys(errs).length) return;
     setBusy(true);
     const row = {
-      customer: f.customer.trim(), invoice_number: f.invoice_number.trim(), amount_kobo: amount!, issue_date: f.issue_date,
+      customer: f.customer.trim(), customer_email: f.customer_email.trim() || null, invoice_number: f.invoice_number.trim(), amount_kobo: amount!, issue_date: f.issue_date,
       due_date: f.due_date, status: f.status, description: f.description.trim(), notes: f.notes.trim(),
       paid_at: f.status === "paid" ? (inv?.paid_at ?? new Date().toISOString()) : null,
     };
@@ -192,6 +206,7 @@ function InvoiceForm({ inv, onClose, onSaved }: { inv: Invoice | null; onClose: 
     <FormDialog open onOpenChange={(o) => !o && onClose()} title={inv ? "Edit invoice" : "New invoice"} onSubmit={save} submitting={busy}>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="cust" label="Customer" required error={errors.customer}><Input id="cust" value={f.customer} onChange={set("customer")} /></Field>
+        <Field id="custemail" label="Customer email" hint="Used by the Email reminder button."><Input id="custemail" type="email" value={f.customer_email} onChange={set("customer_email")} /></Field>
         <Field id="num" label="Invoice number" required error={errors.invoice_number}><Input id="num" value={f.invoice_number} onChange={set("invoice_number")} /></Field>
         <Field id="amt" label="Amount (₦)" required error={errors.amount}><Input id="amt" inputMode="decimal" value={f.amount} onChange={set("amount")} /></Field>
         <Field id="st" label="Status">

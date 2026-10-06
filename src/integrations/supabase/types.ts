@@ -442,6 +442,7 @@ export type Database = {
           amount_kobo: number
           created_at: string
           customer: string
+          customer_email: string | null
           description: string
           due_date: string
           id: string
@@ -457,6 +458,7 @@ export type Database = {
           amount_kobo: number
           created_at?: string
           customer: string
+          customer_email?: string | null
           description?: string
           due_date: string
           id?: string
@@ -472,6 +474,7 @@ export type Database = {
           amount_kobo?: number
           created_at?: string
           customer?: string
+          customer_email?: string | null
           description?: string
           due_date?: string
           id?: string
