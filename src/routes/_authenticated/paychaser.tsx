@@ -164,7 +164,7 @@ function PayChaser() {
 function InvoiceForm({ inv, onClose, onSaved }: { inv: Invoice | null; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({
     customer: inv?.customer ?? "",
-    invoice_number: inv?.invoice_number ?? "",
+    customer_email: inv?.customer_email ?? "",
     amount: inv ? String(inv.amount_kobo / 100) : "",
     issue_date: inv?.issue_date ?? todayISO(),
     due_date: inv?.due_date ?? "",
