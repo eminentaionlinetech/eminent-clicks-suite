@@ -190,7 +190,7 @@ function InvoiceForm({ inv, onClose, onSaved }: { inv: Invoice | null; onClose: 
     if (Object.keys(errs).length) return;
     setBusy(true);
     const row = {
-      customer: f.customer.trim(), invoice_number: f.invoice_number.trim(), amount_kobo: amount!, issue_date: f.issue_date,
+      customer: f.customer.trim(), customer_email: f.customer_email.trim() || null, invoice_number: f.invoice_number.trim(), amount_kobo: amount!, issue_date: f.issue_date,
       due_date: f.due_date, status: f.status, description: f.description.trim(), notes: f.notes.trim(),
       paid_at: f.status === "paid" ? (inv?.paid_at ?? new Date().toISOString()) : null,
     };
