@@ -124,6 +124,11 @@ function PayChaser() {
                           <p className="text-sm text-muted-foreground">{formatNaira(i.amount_kobo)} · Due {formatDate(i.due_date)}{i.paid_at && ` · Paid ${formatDate(i.paid_at)}`}</p>
                         </div>
                         <Pill tone={i.status === "paid" ? "success" : od ? "danger" : i.status === "draft" ? "muted" : "warning"}>{od ? "Overdue" : label(i.status)}</Pill>
+                        {i.status !== "paid" && (
+                          <Button size="sm" variant="outline" onClick={() => whatsappReminder(i)} aria-label={`Send WhatsApp reminder to ${i.customer}`}>
+                            <MessageCircle /> WhatsApp
+                          </Button>
+                        )}
                         {i.status !== "paid" && <Button size="sm" variant="outline" onClick={() => markPaid(i)}>Mark paid</Button>}
                         <Button size="sm" variant="ghost" onClick={() => setReminderFor(i)}><BellRing /> Reminders</Button>
                         <Button variant="ghost" size="icon" aria-label="Edit" onClick={() => setEditing(i)}><Pencil /></Button>
