@@ -165,6 +165,7 @@ function InvoiceForm({ inv, onClose, onSaved }: { inv: Invoice | null; onClose: 
   const [f, setF] = useState({
     customer: inv?.customer ?? "",
     customer_email: inv?.customer_email ?? "",
+    invoice_number: inv?.invoice_number ?? "",
     amount: inv ? String(inv.amount_kobo / 100) : "",
     issue_date: inv?.issue_date ?? todayISO(),
     due_date: inv?.due_date ?? "",
