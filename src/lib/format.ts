@@ -1,6 +1,12 @@
-const naira = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 2, minimumFractionDigits: 0 });
+const naira = new Intl.NumberFormat("en-NG", {
+  style: "currency",
+  currency: "NGN",
+  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
+});
 
-export const formatNaira = (kobo: number | null | undefined) => naira.format((kobo ?? 0) / 100);
+export const formatNaira = (kobo: number | null | undefined) =>
+  naira.format(Math.round((kobo ?? 0) / 100));
 
 /** Parse a user-typed naira amount into integer kobo. Returns null when invalid. */
 export function parseNairaToKobo(input: string): number | null {
@@ -10,12 +16,27 @@ export function parseNairaToKobo(input: string): number | null {
 }
 
 export const formatDate = (d: string | null | undefined) =>
-  d ? new Date(d.length === 10 ? d + "T00:00:00" : d).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  d
+    ? new Date(d.length === 10 ? d + "T00:00:00" : d).toLocaleDateString("en-NG", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
 
 export const formatDateTime = (d: string | null | undefined) =>
-  d ? new Date(d).toLocaleString("en-NG", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+  d
+    ? new Date(d).toLocaleString("en-NG", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "—";
 
-export const formatBytes = (b: number) => (b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1024 / 1024).toFixed(2)} MB`);
+export const formatBytes = (b: number) =>
+  b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1024 / 1024).toFixed(2)} MB`;
 
 export const todayISO = () => {
   const d = new Date();
@@ -35,6 +56,9 @@ const ERROR_MAP: Record<string, string> = {
   not_pending: "This payment has already been reviewed.",
   reason_required: "Please provide a reason for rejection.",
   amount_mismatch: "The payment amount doesn't match the tool price.",
+  tool_not_unlocked: "PayChaser is not unlocked on your account. Please unlock it to create invoices.",
+  job_not_found: "The selected job could not be found.",
+  quote_not_found: "The selected quote could not be found.",
 };
 
 /** Map a backend error to a safe, user-friendly message. */

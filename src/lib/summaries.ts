@@ -35,9 +35,11 @@ export async function fetchToolSummary(toolId: ToolId): Promise<{ label: string;
       ];
     }
     case "paychaser": {
-      const { data, error } = await supabase.from("pc_invoices").select("amount_kobo, status, due_date");
+      const { data, error } = await supabase.from("pc_invoices").select("amount_kobo, balance_kobo, status, due_date");
       if (error) throw error;
-      const outstanding = data.filter((i) => i.status !== "paid" && i.status !== "draft").reduce((a, i) => a + i.amount_kobo, 0);
+      const outstanding = data
+        .filter((i) => i.status !== "paid" && i.status !== "draft")
+        .reduce((a, i) => a + (i.balance_kobo ?? i.amount_kobo), 0);
       return [
         { label: "Invoices", value: String(data.length) },
         { label: "Outstanding", value: formatNaira(outstanding) },

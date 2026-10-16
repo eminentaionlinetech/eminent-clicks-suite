@@ -440,9 +440,11 @@ export type Database = {
       pc_invoices: {
         Row: {
           amount_kobo: number
+          balance_kobo: number | null
           created_at: string
           customer: string
           customer_email: string | null
+          customer_phone: string | null
           description: string
           due_date: string
           id: string
@@ -450,15 +452,19 @@ export type Database = {
           issue_date: string
           notes: string
           paid_at: string | null
+          source_job_id: string | null
+          source_quote_id: string | null
           status: string
           updated_at: string
           user_id: string
         }
         Insert: {
           amount_kobo: number
+          balance_kobo?: number | null
           created_at?: string
           customer: string
           customer_email?: string | null
+          customer_phone?: string | null
           description?: string
           due_date: string
           id?: string
@@ -466,15 +472,19 @@ export type Database = {
           issue_date: string
           notes?: string
           paid_at?: string | null
+          source_job_id?: string | null
+          source_quote_id?: string | null
           status?: string
           updated_at?: string
           user_id?: string
         }
         Update: {
           amount_kobo?: number
+          balance_kobo?: number | null
           created_at?: string
           customer?: string
           customer_email?: string | null
+          customer_phone?: string | null
           description?: string
           due_date?: string
           id?: string
@@ -482,6 +492,8 @@ export type Database = {
           issue_date?: string
           notes?: string
           paid_at?: string | null
+          source_job_id?: string | null
+          source_quote_id?: string | null
           status?: string
           updated_at?: string
           user_id?: string
@@ -525,6 +537,91 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pc_reminders_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "pc_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pc_payments: {
+        Row: {
+          amount_kobo: number
+          created_at: string
+          id: string
+          invoice_id: string
+          notes: string
+          payment_date: string
+          payment_method: string
+          recorded_at: string
+          reference: string
+          user_id: string
+        }
+        Insert: {
+          amount_kobo: number
+          created_at?: string
+          id?: string
+          invoice_id: string
+          notes?: string
+          payment_date?: string
+          payment_method?: string
+          recorded_at?: string
+          reference?: string
+          user_id?: string
+        }
+        Update: {
+          amount_kobo?: number
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          notes?: string
+          payment_date?: string
+          payment_method?: string
+          recorded_at?: string
+          reference?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pc_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "pc_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pc_automation_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json
+          id: string
+          invoice_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json
+          id?: string
+          invoice_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json
+          id?: string
+          invoice_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pc_automation_logs_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "pc_invoices"
@@ -753,6 +850,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      convert_job_to_invoice: {
+        Args: {
+          _amount_kobo: number
+          _due_date?: string | null
+          _job_id: string
+          _notes?: string | null
+        }
+        Returns: string
+      }
+      convert_quote_to_invoice: {
+        Args: {
+          _due_date?: string | null
+          _notes?: string | null
+          _quote_id: string
+        }
+        Returns: string
+      }
       approve_payment: { Args: { _payment_id: string }; Returns: Json }
       has_role: {
         Args: {
