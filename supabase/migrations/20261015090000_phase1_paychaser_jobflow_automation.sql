@@ -48,6 +48,15 @@ CREATE TABLE IF NOT EXISTS public.pc_payments (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Index for payment queries and cross-user join performance
+CREATE INDEX IF NOT EXISTS pc_payments_invoice_user_idx
+  ON public.pc_payments (invoice_id, user_id);
+
+-- Enforce duplicate payment prevention when reference is provided
+CREATE UNIQUE INDEX IF NOT EXISTS pc_payments_invoice_reference_idx
+  ON public.pc_payments (invoice_id, reference)
+  WHERE reference <> '';
+
 ALTER TABLE public.pc_payments ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
@@ -56,8 +65,20 @@ DO $$ BEGIN
   ) THEN
     CREATE POLICY pc_payments_owner_all ON public.pc_payments
       FOR ALL TO authenticated
-      USING (auth.uid() = user_id)
-      WITH CHECK (auth.uid() = user_id);
+      USING (
+        auth.uid() = user_id
+        AND EXISTS (
+          SELECT 1 FROM public.pc_invoices inv
+          WHERE inv.id = pc_payments.invoice_id AND inv.user_id = auth.uid()
+        )
+      )
+      WITH CHECK (
+        auth.uid() = user_id
+        AND EXISTS (
+          SELECT 1 FROM public.pc_invoices inv
+          WHERE inv.id = invoice_id AND inv.user_id = auth.uid()
+        )
+      );
   END IF;
 END $$;
 
@@ -66,10 +87,11 @@ CREATE OR REPLACE FUNCTION public.recalculate_single_invoice_balance(target_inv_
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   inv_amount bigint;
+  inv_user_id uuid;
   total_paid bigint;
   new_balance bigint;
 BEGIN
-  SELECT amount_kobo INTO inv_amount
+  SELECT amount_kobo, user_id INTO inv_amount, inv_user_id
   FROM public.pc_invoices
   WHERE id = target_inv_id;
 
@@ -79,7 +101,7 @@ BEGIN
 
   SELECT COALESCE(SUM(amount_kobo), 0) INTO total_paid
   FROM public.pc_payments
-  WHERE invoice_id = target_inv_id;
+  WHERE invoice_id = target_inv_id AND user_id = inv_user_id;
 
   new_balance := GREATEST(0, inv_amount - total_paid);
 
