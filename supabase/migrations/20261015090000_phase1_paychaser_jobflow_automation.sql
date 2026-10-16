@@ -12,13 +12,17 @@ ALTER TABLE public.pc_invoices
   ADD COLUMN IF NOT EXISTS source_job_id uuid REFERENCES public.jf_jobs(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS source_quote_id uuid REFERENCES public.jf_quotes(id) ON DELETE SET NULL;
 
--- 2. Backfill balance_kobo for existing invoices
-UPDATE public.pc_invoices
+-- 2. Safe backfill for existing invoices (handles paid, cancelled, unpaid, draft, sent)
+UPDATE public.pc_invoices inv
 SET balance_kobo = CASE
-  WHEN status = 'paid' THEN 0
-  ELSE amount_kobo
+  WHEN inv.status = 'paid' THEN 0
+  WHEN inv.status = 'cancelled' THEN 0
+  ELSE GREATEST(0, inv.amount_kobo - COALESCE(
+    (SELECT SUM(p.amount_kobo) FROM public.pc_payments p WHERE p.invoice_id = inv.id AND p.user_id = inv.user_id),
+    0
+  ))
 END
-WHERE balance_kobo IS NULL;
+WHERE inv.balance_kobo IS NULL;
 
 -- 3. Set default for future inserts
 ALTER TABLE public.pc_invoices
@@ -42,6 +46,7 @@ CREATE TABLE IF NOT EXISTS public.pc_payments (
   amount_kobo bigint NOT NULL CHECK (amount_kobo > 0),
   payment_method text NOT NULL DEFAULT 'bank_transfer',
   reference text NOT NULL DEFAULT '',
+  idempotency_key text,
   notes text NOT NULL DEFAULT '',
   payment_date date NOT NULL DEFAULT CURRENT_DATE,
   recorded_at timestamptz NOT NULL DEFAULT now(),
@@ -56,6 +61,11 @@ CREATE INDEX IF NOT EXISTS pc_payments_invoice_user_idx
 CREATE UNIQUE INDEX IF NOT EXISTS pc_payments_invoice_reference_idx
   ON public.pc_payments (invoice_id, reference)
   WHERE reference <> '';
+
+-- Enforce idempotency protection per invoice when idempotency_key is provided
+CREATE UNIQUE INDEX IF NOT EXISTS pc_payments_idempotency_key_idx
+  ON public.pc_payments (invoice_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 
 ALTER TABLE public.pc_payments ENABLE ROW LEVEL SECURITY;
 
@@ -82,18 +92,81 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- 6. Trigger to automatically keep invoice balance and status in sync with customer payments
-CREATE OR REPLACE FUNCTION public.recalculate_single_invoice_balance(target_inv_id uuid)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+-- 6. Trigger to reject overpayments and serialize concurrent payment attempts
+CREATE OR REPLACE FUNCTION public.validate_payment_not_overpaid()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 DECLARE
   inv_amount bigint;
   inv_user_id uuid;
+  other_payments bigint;
+  max_allowed bigint;
+BEGIN
+  -- Lock the target invoice row to serialize concurrent payment operations
+  SELECT amount_kobo, user_id INTO inv_amount, inv_user_id
+  FROM public.pc_invoices
+  WHERE id = NEW.invoice_id
+  FOR UPDATE;
+
+  IF inv_amount IS NULL THEN
+    RAISE EXCEPTION 'invoice_not_found';
+  END IF;
+
+  IF inv_user_id <> NEW.user_id THEN
+    RAISE EXCEPTION 'cross_user_payment_forbidden';
+  END IF;
+
+  IF NEW.amount_kobo <= 0 THEN
+    RAISE EXCEPTION 'payment_amount_must_be_positive';
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    SELECT COALESCE(SUM(amount_kobo), 0) INTO other_payments
+    FROM public.pc_payments
+    WHERE invoice_id = NEW.invoice_id AND id <> OLD.id AND user_id = NEW.user_id;
+  ELSE
+    SELECT COALESCE(SUM(amount_kobo), 0) INTO other_payments
+    FROM public.pc_payments
+    WHERE invoice_id = NEW.invoice_id AND user_id = NEW.user_id;
+  END IF;
+
+  max_allowed := inv_amount - other_payments;
+
+  IF NEW.amount_kobo > max_allowed THEN
+    RAISE EXCEPTION 'overpayment_rejected: amount (%) exceeds outstanding balance (%)',
+      NEW.amount_kobo, max_allowed;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_validate_payment_not_overpaid ON public.pc_payments;
+CREATE TRIGGER trg_validate_payment_not_overpaid
+BEFORE INSERT OR UPDATE ON public.pc_payments
+FOR EACH ROW EXECUTE FUNCTION public.validate_payment_not_overpaid();
+
+-- 7. Trigger to synchronize invoice balance and status
+CREATE OR REPLACE FUNCTION public.recalculate_single_invoice_balance(target_inv_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  inv_amount bigint;
+  inv_user_id uuid;
+  inv_current_status text;
   total_paid bigint;
   new_balance bigint;
 BEGIN
-  SELECT amount_kobo, user_id INTO inv_amount, inv_user_id
+  SELECT amount_kobo, user_id, status INTO inv_amount, inv_user_id, inv_current_status
   FROM public.pc_invoices
-  WHERE id = target_inv_id;
+  WHERE id = target_inv_id
+  FOR UPDATE;
 
   IF inv_amount IS NULL THEN
     RETURN;
@@ -110,12 +183,13 @@ BEGIN
     balance_kobo = new_balance,
     status = CASE
       WHEN new_balance = 0 THEN 'paid'
-      WHEN total_paid > 0 THEN 'unpaid'
-      ELSE status
+      WHEN inv_current_status = 'paid' AND new_balance > 0 THEN 'unpaid'
+      ELSE inv_current_status
     END,
     paid_at = CASE
       WHEN new_balance = 0 THEN COALESCE(paid_at, now())
-      ELSE NULL
+      WHEN inv_current_status = 'paid' AND new_balance > 0 THEN NULL
+      ELSE paid_at
     END,
     updated_at = now()
   WHERE id = target_inv_id;
@@ -123,7 +197,11 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.sync_invoice_payment_balance()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 BEGIN
   IF TG_OP = 'UPDATE' AND OLD.invoice_id IS DISTINCT FROM NEW.invoice_id THEN
     PERFORM public.recalculate_single_invoice_balance(OLD.invoice_id);
@@ -140,7 +218,7 @@ CREATE TRIGGER trg_sync_invoice_payment_balance
 AFTER INSERT OR UPDATE OR DELETE ON public.pc_payments
 FOR EACH ROW EXECUTE FUNCTION public.sync_invoice_payment_balance();
 
--- 7. Automation logs table for auditability and delivery records
+-- 8. Automation logs table for auditability and delivery records
 CREATE TABLE IF NOT EXISTS public.pc_automation_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -151,20 +229,37 @@ CREATE TABLE IF NOT EXISTS public.pc_automation_logs (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS pc_automation_logs_user_idx
+  ON public.pc_automation_logs (user_id, created_at DESC);
+
 ALTER TABLE public.pc_automation_logs ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE tablename = 'pc_automation_logs' AND policyname = 'pc_automation_logs_owner_all'
-  ) THEN
-    CREATE POLICY pc_automation_logs_owner_all ON public.pc_automation_logs
-      FOR ALL TO authenticated
-      USING (auth.uid() = user_id)
-      WITH CHECK (auth.uid() = user_id);
-  END IF;
+  DROP POLICY IF EXISTS pc_automation_logs_owner_all ON public.pc_automation_logs;
+  DROP POLICY IF EXISTS pc_automation_logs_owner_select ON public.pc_automation_logs;
+  DROP POLICY IF EXISTS pc_automation_logs_owner_insert ON public.pc_automation_logs;
+
+  CREATE POLICY pc_automation_logs_owner_select ON public.pc_automation_logs
+    FOR SELECT TO authenticated
+    USING (auth.uid() = user_id);
+
+  CREATE POLICY pc_automation_logs_owner_insert ON public.pc_automation_logs
+    FOR INSERT TO authenticated
+    WITH CHECK (
+      auth.uid() = user_id
+      AND (
+        invoice_id IS NULL
+        OR EXISTS (
+          SELECT 1 FROM public.pc_invoices inv
+          WHERE inv.id = invoice_id AND inv.user_id = auth.uid()
+        )
+      )
+    );
 END $$;
 
--- 8. RPC: Convert Job to Invoice (Idempotent, Entitlement-Protected)
+REVOKE UPDATE, DELETE ON public.pc_automation_logs FROM authenticated;
+
+-- 9. RPC: Convert Job to Invoice (Idempotent, Entitlement-Protected, Safe Search Path)
 CREATE OR REPLACE FUNCTION public.convert_job_to_invoice(
   _job_id uuid,
   _amount_kobo bigint,
@@ -174,7 +269,7 @@ CREATE OR REPLACE FUNCTION public.convert_job_to_invoice(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   current_user_id uuid := auth.uid();
@@ -187,8 +282,12 @@ BEGIN
     RAISE EXCEPTION 'forbidden';
   END IF;
 
-  IF NOT public.has_tool('paychaser') THEN
+  IF NOT public.has_tool(current_user_id, 'paychaser') THEN
     RAISE EXCEPTION 'tool_not_unlocked';
+  END IF;
+
+  IF _amount_kobo <= 0 THEN
+    RAISE EXCEPTION 'amount_must_be_positive';
   END IF;
 
   SELECT * INTO target_job
@@ -199,7 +298,7 @@ BEGIN
     RAISE EXCEPTION 'job_not_found';
   END IF;
 
-  -- Check if already converted
+  -- 1. Check if this job has already been invoiced directly
   SELECT id INTO existing_invoice_id
   FROM public.pc_invoices
   WHERE user_id = current_user_id AND source_job_id = _job_id;
@@ -208,7 +307,25 @@ BEGIN
     RETURN existing_invoice_id;
   END IF;
 
-  -- Generate invoice number
+  -- 2. Check if this job has an approved quote that has already been converted to an invoice
+  SELECT inv.id INTO existing_invoice_id
+  FROM public.pc_invoices inv
+  JOIN public.jf_quotes q ON inv.source_quote_id = q.id
+  WHERE inv.user_id = current_user_id AND q.job_id = _job_id
+  LIMIT 1;
+
+  IF existing_invoice_id IS NOT NULL THEN
+    UPDATE public.pc_invoices
+    SET source_job_id = _job_id, updated_at = now()
+    WHERE id = existing_invoice_id AND source_job_id IS NULL;
+
+    UPDATE public.jf_jobs
+    SET status = 'invoiced', updated_at = now()
+    WHERE id = _job_id AND user_id = current_user_id AND status <> 'invoiced';
+
+    RETURN existing_invoice_id;
+  END IF;
+
   _invoice_number := 'INV-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-' || SUBSTRING(gen_random_uuid()::text, 1, 4);
 
   BEGIN
@@ -264,7 +381,7 @@ BEGIN
 END;
 $$;
 
--- 9. RPC: Convert Quote to Invoice (Idempotent, Entitlement-Protected)
+-- 10. RPC: Convert Quote to Invoice (Idempotent, Entitlement-Protected, Safe Search Path)
 CREATE OR REPLACE FUNCTION public.convert_quote_to_invoice(
   _quote_id uuid,
   _due_date date DEFAULT NULL,
@@ -273,7 +390,7 @@ CREATE OR REPLACE FUNCTION public.convert_quote_to_invoice(
 RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   current_user_id uuid := auth.uid();
@@ -286,7 +403,7 @@ BEGIN
     RAISE EXCEPTION 'forbidden';
   END IF;
 
-  IF NOT public.has_tool('paychaser') THEN
+  IF NOT public.has_tool(current_user_id, 'paychaser') THEN
     RAISE EXCEPTION 'tool_not_unlocked';
   END IF;
 
@@ -302,13 +419,32 @@ BEGIN
     RAISE EXCEPTION 'quote_total_must_be_positive';
   END IF;
 
-  -- Check if already converted
+  -- 1. Check if this quote has already been converted
   SELECT id INTO existing_invoice_id
   FROM public.pc_invoices
   WHERE user_id = current_user_id AND source_quote_id = _quote_id;
 
   IF existing_invoice_id IS NOT NULL THEN
     RETURN existing_invoice_id;
+  END IF;
+
+  -- 2. If this quote is linked to a job that was already invoiced, link to that invoice instead of duplicating
+  IF target_quote.job_id IS NOT NULL THEN
+    SELECT id INTO existing_invoice_id
+    FROM public.pc_invoices
+    WHERE user_id = current_user_id AND source_job_id = target_quote.job_id;
+
+    IF existing_invoice_id IS NOT NULL THEN
+      UPDATE public.pc_invoices
+      SET source_quote_id = _quote_id, updated_at = now()
+      WHERE id = existing_invoice_id AND source_quote_id IS NULL;
+
+      UPDATE public.jf_quotes
+      SET status = 'approved', updated_at = now()
+      WHERE id = _quote_id AND user_id = current_user_id;
+
+      RETURN existing_invoice_id;
+    END IF;
   END IF;
 
   _invoice_number := 'INV-Q-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-' || SUBSTRING(gen_random_uuid()::text, 1, 4);
@@ -345,7 +481,7 @@ BEGIN
   EXCEPTION WHEN unique_violation THEN
     SELECT id INTO new_invoice_id
     FROM public.pc_invoices
-    WHERE user_id = current_user_id AND source_quote_id = _quote_id;
+    WHERE user_id = current_user_id AND (source_quote_id = _quote_id OR (target_quote.job_id IS NOT NULL AND source_job_id = target_quote.job_id));
   END;
 
   UPDATE public.jf_quotes
@@ -369,3 +505,9 @@ BEGIN
   RETURN new_invoice_id;
 END;
 $$;
+
+-- 11. Restrict execution grants on RPCs
+REVOKE EXECUTE ON FUNCTION public.convert_job_to_invoice(uuid, bigint, date, text) FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.convert_quote_to_invoice(uuid, date, text) FROM anon, public;
+GRANT EXECUTE ON FUNCTION public.convert_job_to_invoice(uuid, bigint, date, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.convert_quote_to_invoice(uuid, date, text) TO authenticated;

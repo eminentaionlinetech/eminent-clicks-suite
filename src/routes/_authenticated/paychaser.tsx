@@ -59,7 +59,7 @@ function PayChaser() {
   const [reminderFor, setReminderFor] = useState<Invoice | null>(null);
 
   const list = q.data ?? [];
-  const open = list.filter((i) => i.status !== "paid" && i.status !== "draft");
+  const open = list.filter((i) => i.status !== "paid" && (i.balance_kobo ?? i.amount_kobo) > 0 && i.status !== "draft");
   const overdue = open.filter(invoiceIsOverdue);
 
   const totalOutstanding = open.reduce((a, i) => a + (i.balance_kobo ?? i.amount_kobo), 0);
@@ -72,9 +72,16 @@ function PayChaser() {
   const filtered = useMemo(
     () =>
       list.filter((i) => {
-        const isPartiallyPaid = (i.balance_kobo ?? i.amount_kobo) < i.amount_kobo && (i.balance_kobo ?? i.amount_kobo) > 0;
-        const st = invoiceIsOverdue(i) ? "overdue" : isPartiallyPaid ? "partially_paid" : i.status;
-        return (filter === "all" || st === filter) && `${i.customer} ${i.invoice_number}`.toLowerCase().includes(search.toLowerCase());
+        const bal = i.balance_kobo ?? i.amount_kobo;
+        const isPartiallyPaid = bal < i.amount_kobo && bal > 0;
+        const od = invoiceIsOverdue(i);
+        const matchesSearch = `${i.customer} ${i.invoice_number}`.toLowerCase().includes(search.toLowerCase());
+        if (!matchesSearch) return false;
+        if (filter === "all") return true;
+        if (filter === "overdue") return od;
+        if (filter === "partially_paid") return isPartiallyPaid;
+        if (filter === "paid") return i.status === "paid" || bal === 0;
+        return i.status === filter;
       }),
     [list, search, filter],
   );
@@ -87,18 +94,22 @@ function PayChaser() {
   async function markPaid(i: Invoice) {
     const remainingKobo = i.balance_kobo ?? i.amount_kobo;
     if (remainingKobo > 0) {
-      // Record payment for the full remaining balance
+      const idempotencyKey =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `mark-paid-${i.id}-${Date.now()}`;
+
+      // Record payment for the full remaining balance through the verified ledger
       const { error: payErr } = await supabase.from("pc_payments").insert({
         invoice_id: i.id,
         amount_kobo: remainingKobo,
         payment_method: "bank_transfer",
+        idempotency_key: idempotencyKey,
         notes: "Marked as fully paid",
         payment_date: todayISO(),
       });
       if (payErr) {
-        // Fallback direct update if payments table not yet active
-        const { error: upErr } = await supabase.from("pc_invoices").update({ status: "paid", balance_kobo: 0, paid_at: new Date().toISOString() }).eq("id", i.id);
-        if (upErr) return void toast.error(friendlyError(upErr, "Couldn't update this invoice."));
+        return void toast.error(friendlyError(payErr, "Couldn't record payment for this invoice."));
       }
     } else {
       const { error } = await supabase.from("pc_invoices").update({ status: "paid", balance_kobo: 0, paid_at: new Date().toISOString() }).eq("id", i.id);
@@ -194,9 +205,11 @@ function PayChaser() {
               ) : (
                 <ul className="space-y-3">
                   {filtered.map((i) => {
-                    const od = invoiceIsOverdue(i);
                     const bal = i.balance_kobo ?? i.amount_kobo;
                     const isPartial = bal < i.amount_kobo && bal > 0;
+                    const od = invoiceIsOverdue(i);
+                    const isPaid = i.status === "paid" || bal === 0;
+
                     return (
                       <li key={i.id} className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-4 shadow-card">
                         <div className="min-w-0 flex-1">
@@ -215,10 +228,10 @@ function PayChaser() {
                             {i.paid_at && <span className="ml-2 text-success">· Paid {formatDate(i.paid_at)}</span>}
                           </div>
                         </div>
-                        <Pill tone={i.status === "paid" ? "success" : od ? "danger" : isPartial ? "warning" : i.status === "draft" ? "muted" : "warning"}>
-                          {od ? "Overdue" : isPartial ? "Partially paid" : label(i.status)}
+                        <Pill tone={isPaid ? "success" : od ? "danger" : isPartial ? "warning" : i.status === "draft" ? "muted" : "warning"}>
+                          {isPaid ? "Paid" : od ? (isPartial ? "Overdue · Partial" : "Overdue") : isPartial ? "Partially paid" : label(i.status)}
                         </Pill>
-                        {i.status !== "paid" && (
+                        {!isPaid && (
                           <>
                             <Button size="sm" variant="outline" onClick={() => setPaymentFor(i)} aria-label={`Record payment for ${i.customer}`}>
                               <CreditCard className="h-4 w-4 mr-1" /> Record payment
@@ -279,7 +292,7 @@ function InvoiceForm({ inv, onClose, onSaved }: { inv: Invoice | null; onClose: 
     if (!f.customer.trim()) errs.customer = "Customer is required.";
     if (!f.invoice_number.trim()) errs.invoice_number = "Invoice number is required.";
     const amount = parseNairaToKobo(f.amount);
-    if (!amount) errs.amount = "Enter an amount in Naira greater than zero.";
+    if (!amount) errs.amount = "Enter a whole Naira amount greater than zero.";
     if (!f.issue_date) errs.issue_date = "Issue date is required.";
     if (!f.due_date) errs.due_date = "Due date is required.";
     else if (f.due_date < f.issue_date) errs.due_date = "Due date can't be before the issue date.";
@@ -362,11 +375,20 @@ function RecordPaymentDialog({ inv, onClose, onSaved }: { inv: Invoice; onClose:
   const [date, setDate] = useState(todayISO());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [idempotencyKey] = useState(() =>
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `pay-${inv.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  );
 
   async function save() {
     const kobo = parseNairaToKobo(amountNaira);
     if (!kobo || kobo <= 0) {
-      setError("Please enter a valid amount in Naira.");
+      setError("Please enter a valid whole Naira amount greater than zero.");
+      return;
+    }
+    if (kobo > remainingKobo) {
+      setError(`Payment cannot exceed the remaining balance of ${formatNaira(remainingKobo)}.`);
       return;
     }
     setBusy(true);
@@ -376,6 +398,7 @@ function RecordPaymentDialog({ inv, onClose, onSaved }: { inv: Invoice; onClose:
       amount_kobo: kobo,
       payment_method: method,
       reference: reference.trim(),
+      idempotency_key: idempotencyKey,
       notes: notes.trim(),
       payment_date: date,
     });
@@ -400,7 +423,7 @@ function RecordPaymentDialog({ inv, onClose, onSaved }: { inv: Invoice; onClose:
       submitLabel="Save Payment"
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field id="payamt" label="Amount received (₦ Naira)" required error={error ?? undefined}>
+        <Field id="payamt" label="Amount received (₦ Naira)" required error={error ?? undefined} hint="Enter whole amount in Naira">
           <Input id="payamt" inputMode="numeric" value={amountNaira} onChange={(e) => setAmountNaira(e.target.value)} placeholder="e.g. 25000" />
         </Field>
         <Field id="paymethod" label="Payment Method">

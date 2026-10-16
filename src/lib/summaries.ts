@@ -4,8 +4,9 @@ import type { ToolId } from "@/lib/tools";
 
 export const MONTHLY_FACTOR: Record<string, number> = { weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
 
-export function invoiceIsOverdue(i: { status: string; due_date: string }) {
-  return i.status !== "paid" && i.status !== "draft" && i.due_date < todayISO();
+export function invoiceIsOverdue(i: { status: string; due_date: string; balance_kobo?: number | null }) {
+  const isPaid = i.status === "paid" || (i.balance_kobo !== undefined && i.balance_kobo !== null && i.balance_kobo <= 0);
+  return !isPaid && i.status !== "draft" && i.due_date < todayISO();
 }
 
 /** Real per-tool summary lines computed from the user's own records (empty → zeros). */

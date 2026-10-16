@@ -549,6 +549,7 @@ export type Database = {
           amount_kobo: number
           created_at: string
           id: string
+          idempotency_key: string | null
           invoice_id: string
           notes: string
           payment_date: string
@@ -561,6 +562,7 @@ export type Database = {
           amount_kobo: number
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           invoice_id: string
           notes?: string
           payment_date?: string
@@ -573,6 +575,7 @@ export type Database = {
           amount_kobo?: number
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           invoice_id?: string
           notes?: string
           payment_date?: string

@@ -5,14 +5,19 @@ const naira = new Intl.NumberFormat("en-NG", {
   minimumFractionDigits: 0,
 });
 
-export const formatNaira = (kobo: number | null | undefined) =>
-  naira.format(Math.round((kobo ?? 0) / 100));
+export const formatNaira = (kobo: number | null | undefined) => {
+  if (kobo === null || kobo === undefined || !Number.isFinite(kobo)) return "₦0";
+  return naira.format(Math.round(kobo / 100));
+};
 
-/** Parse a user-typed naira amount into integer kobo. Returns null when invalid. */
+/** Parse a user-typed whole naira amount into integer kobo. Returns null when invalid or decimal. */
 export function parseNairaToKobo(input: string): number | null {
-  const cleaned = input.replace(/[,\s₦]/g, "");
-  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
-  return Math.round(parseFloat(cleaned) * 100);
+  if (!input) return null;
+  const cleaned = input.replace(/[,\s₦]/g, "").trim();
+  if (!/^\d+(\.00)?$/.test(cleaned)) return null;
+  const val = parseInt(cleaned.split(".")[0], 10);
+  if (!Number.isFinite(val) || val <= 0) return null;
+  return val * 100;
 }
 
 export const formatDate = (d: string | null | undefined) =>
@@ -59,6 +64,8 @@ const ERROR_MAP: Record<string, string> = {
   tool_not_unlocked: "PayChaser is not unlocked on your account. Please unlock it to create invoices.",
   job_not_found: "The selected job could not be found.",
   quote_not_found: "The selected quote could not be found.",
+  overpayment_rejected: "Payment amount exceeds the outstanding balance on this invoice.",
+  payment_amount_must_be_positive: "Payment amount must be greater than ₦0.",
 };
 
 /** Map a backend error to a safe, user-friendly message. */
