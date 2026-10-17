@@ -57,6 +57,7 @@ function PayChaser() {
   const [editing, setEditing] = useState<Invoice | "new" | null>(null);
   const [paymentFor, setPaymentFor] = useState<Invoice | null>(null);
   const [reminderFor, setReminderFor] = useState<Invoice | null>(null);
+  const [showAutoSettings, setShowAutoSettings] = useState(false);
 
   const list = q.data ?? [];
   const open = list.filter((i) => i.status !== "paid" && (i.balance_kobo ?? i.amount_kobo) > 0 && i.status !== "draft");
@@ -152,9 +153,14 @@ function PayChaser() {
         title="Invoices"
         description="Track customer invoices, payments and balances in Nigerian Naira (₦)."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus /> New invoice
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowAutoSettings(true)}>
+              <BellRing className="size-4 mr-1.5" /> Automated Reminders
+            </Button>
+            <Button onClick={() => setEditing("new")}>
+              <Plus /> New invoice
+            </Button>
+          </div>
         }
       />
       {q.isLoading ? (
@@ -181,9 +187,14 @@ function PayChaser() {
               title="No invoices yet."
               description="Create an invoice or convert a job from JobFlow to start tracking customer payments."
               action={
-                <Button onClick={() => setEditing("new")}>
-                  <Plus /> New invoice
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => setShowAutoSettings(true)}>
+                    <BellRing className="size-4 mr-1.5" /> Automated Reminders
+                  </Button>
+                  <Button onClick={() => setEditing("new")}>
+                    <Plus /> New invoice
+                  </Button>
+                </div>
               }
             />
           ) : (
@@ -266,6 +277,7 @@ function PayChaser() {
       {editing && <InvoiceForm inv={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={refresh} />}
       {paymentFor && <RecordPaymentDialog inv={paymentFor} onClose={() => setPaymentFor(null)} onSaved={refresh} />}
       {reminderFor && <Reminders inv={reminderFor} onClose={() => setReminderFor(null)} />}
+      {showAutoSettings && <AutomatedRemindersSettings onClose={() => setShowAutoSettings(false)} />}
     </>
   );
 }
@@ -464,9 +476,27 @@ function Reminders({ inv, onClose }: { inv: Invoice; onClose: () => void }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
+  function statusBadge(status?: string) {
+    switch (status) {
+      case "delivered":
+        return <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">Delivered</span>;
+      case "not_configured":
+        return <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">Not Configured</span>;
+      case "sending":
+      case "queued":
+        return <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">In Progress</span>;
+      case "failed":
+        return <span className="inline-flex items-center rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-600 dark:text-rose-400">Failed</span>;
+      case "skipped":
+        return <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Skipped</span>;
+      default:
+        return <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">Recorded</span>;
+    }
+  }
+
   async function save() {
     setBusy(true);
-    const { error } = await supabase.from("pc_reminders").insert({ invoice_id: inv.id, stage, channel, note: note.trim() });
+    const { error } = await supabase.from("pc_reminders").insert({ invoice_id: inv.id, stage, channel, note: note.trim(), status: "delivered" });
     setBusy(false);
     if (error) return void toast.error(friendlyError(error, "Couldn't record this reminder."));
     toast.success("Reminder recorded.");
@@ -511,15 +541,260 @@ function Reminders({ inv, onClose }: { inv: Invoice; onClose: () => void }) {
           <ul className="divide-y rounded-lg border text-sm">
             {q.data.map((r) => (
               <li key={r.id} className="p-3">
-                <p className="font-medium">
-                  {label(r.stage)} · {label(r.channel)}
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">
+                    {label(r.stage)} · {label(r.channel)}
+                  </p>
+                  {statusBadge(r.status)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {formatDateTime(r.recorded_at)}
+                  {r.recipient && ` · To: ${r.recipient}`}
+                  {r.attempt_count && r.attempt_count > 1 ? ` · Attempt ${r.attempt_count}` : ""}
                 </p>
-                <p className="text-xs text-muted-foreground">{formatDateTime(r.recorded_at)}</p>
-                {r.note && <p className="mt-1">{r.note}</p>}
+                {r.note && <p className="mt-1 text-xs text-muted-foreground">{r.note}</p>}
+                {r.error_message && (
+                  <p className="mt-1 text-xs text-rose-600 dark:text-rose-400 font-mono">
+                    {r.error_message}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
         )}
+      </div>
+    </FormDialog>
+  );
+}
+
+
+function AutomatedRemindersSettings({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ["paychaser", "reminder_settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("pc_reminder_settings").select("*").maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [remindBeforeDue, setRemindBeforeDue] = useState(true);
+  const [daysBeforeDue, setDaysBeforeDue] = useState(3);
+  const [remindOnDueDate, setRemindOnDueDate] = useState(true);
+  const [remindOverdue3, setRemindOverdue3] = useState(true);
+  const [remindOverdue7, setRemindOverdue7] = useState(true);
+  const [remindOverdue14, setRemindOverdue14] = useState(true);
+  const [customNote, setCustomNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<string | null>(null);
+
+  // Prepopulate form once settings are loaded
+  useMemo(() => {
+    if (q.data) {
+      setEmailEnabled(q.data.email_enabled);
+      setWhatsappEnabled(q.data.whatsapp_enabled);
+      setSmsEnabled(q.data.sms_enabled);
+      setRemindBeforeDue(q.data.remind_before_due);
+      setDaysBeforeDue(q.data.days_before_due);
+      setRemindOnDueDate(q.data.remind_on_due_date);
+      setRemindOverdue3(q.data.remind_overdue_3);
+      setRemindOverdue7(q.data.remind_overdue_7);
+      setRemindOverdue14(q.data.remind_overdue_14);
+      setCustomNote(q.data.custom_note || "");
+    }
+  }, [q.data]);
+
+  async function handleSave() {
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setSaving(false);
+      return void toast.error("User session not found.");
+    }
+
+    const payload = {
+      user_id: user.id,
+      email_enabled: emailEnabled,
+      whatsapp_enabled: whatsappEnabled,
+      sms_enabled: smsEnabled,
+      remind_before_due: remindBeforeDue,
+      days_before_due: daysBeforeDue,
+      remind_on_due_date: remindOnDueDate,
+      remind_overdue_3: remindOverdue3,
+      remind_overdue_7: remindOverdue7,
+      remind_overdue_14: remindOverdue14,
+      custom_note: customNote.trim(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from("pc_reminder_settings").upsert(payload, { onConflict: "user_id" });
+    setSaving(false);
+    if (error) return void toast.error(friendlyError(error, "Could not save reminder settings."));
+    toast.success("Automated reminder settings saved.");
+    qc.invalidateQueries({ queryKey: ["paychaser", "reminder_settings"] });
+    onClose();
+  }
+
+  async function handleRunCheck() {
+    setChecking(true);
+    setCheckResult(null);
+    try {
+      const { data, error } = await supabase.rpc("claim_due_invoice_reminders", { p_limit: 20 });
+      if (error) throw error;
+      const count = data?.length ?? 0;
+      if (count === 0) {
+        setCheckResult("No eligible invoices are due for reminders today.");
+        toast.info("No eligible reminders found today.");
+      } else {
+        setCheckResult(`Identified and claimed ${count} reminder task(s) for backend dispatch.`);
+        toast.success(`Claimed ${count} reminder task(s).`);
+        qc.invalidateQueries({ queryKey: ["paychaser"] });
+      }
+    } catch (err: any) {
+      toast.error(friendlyError(err, "Failed to run reminder check."));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  return (
+    <FormDialog
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title="Automated Reminders Settings"
+      description="Configure backend-powered scheduled invoice reminders across Email, WhatsApp, and SMS."
+      onSubmit={handleSave}
+      submitting={saving}
+      submitLabel="Save Settings"
+    >
+      <div className="space-y-6">
+        {/* Provider configuration notice */}
+        <div className="rounded-lg border bg-muted/40 p-3 text-xs space-y-1">
+          <p className="font-semibold text-foreground">Backend Delivery Channels Status</p>
+          <div className="grid gap-1.5 pt-1 text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <span>📧 Email (Resend)</span>
+              <span className="text-[11px] font-mono rounded bg-amber-500/10 text-amber-600 px-1.5 py-0.5">Requires RESEND_API_KEY</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>💬 WhatsApp (Meta Cloud API)</span>
+              <span className="text-[11px] font-mono rounded bg-amber-500/10 text-amber-600 px-1.5 py-0.5">Requires META_WHATSAPP_TOKEN</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>📱 SMS (Termii Nigeria)</span>
+              <span className="text-[11px] font-mono rounded bg-amber-500/10 text-amber-600 px-1.5 py-0.5">Requires TERMII_API_KEY</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground/80 pt-1">
+            Channels without configured backend secrets are marked as \"Not Configured\" and will not send live messages.
+          </p>
+        </div>
+
+        {/* Channel Toggles */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">Enabled Delivery Channels</h3>
+          <div className="grid gap-2.5 sm:grid-cols-3">
+            <label className="flex items-center gap-2.5 rounded-lg border p-3 cursor-pointer hover:bg-muted/30">
+              <input type="checkbox" checked={emailEnabled} onChange={(e) => setEmailEnabled(e.target.checked)} className="size-4 rounded border-input" />
+              <div>
+                <p className="text-sm font-medium">Email</p>
+                <p className="text-[11px] text-muted-foreground">To customer email</p>
+              </div>
+            </label>
+            <label className="flex items-center gap-2.5 rounded-lg border p-3 cursor-pointer hover:bg-muted/30">
+              <input type="checkbox" checked={whatsappEnabled} onChange={(e) => setWhatsappEnabled(e.target.checked)} className="size-4 rounded border-input" />
+              <div>
+                <p className="text-sm font-medium">WhatsApp</p>
+                <p className="text-[11px] text-muted-foreground">To mobile phone</p>
+              </div>
+            </label>
+            <label className="flex items-center gap-2.5 rounded-lg border p-3 cursor-pointer hover:bg-muted/30">
+              <input type="checkbox" checked={smsEnabled} onChange={(e) => setSmsEnabled(e.target.checked)} className="size-4 rounded border-input" />
+              <div>
+                <p className="text-sm font-medium">SMS</p>
+                <p className="text-[11px] text-muted-foreground">Direct text message</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* Schedule Stages */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">Reminder Timing & Stages</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between rounded-lg border p-2.5">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={remindBeforeDue} onChange={(e) => setRemindBeforeDue(e.target.checked)} className="size-4 rounded" />
+                <span>Send reminder before due date</span>
+              </label>
+              {remindBeforeDue && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <NativeSelect id="days_before" value={String(daysBeforeDue)} onChange={(e) => setDaysBeforeDue(Number(e.target.value))}>
+                    <option value="1">1 day before</option>
+                    <option value="2">2 days before</option>
+                    <option value="3">3 days before</option>
+                    <option value="5">5 days before</option>
+                    <option value="7">7 days before</option>
+                  </NativeSelect>
+                </div>
+              )}
+            </div>
+
+            <label className="flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer">
+              <input type="checkbox" checked={remindOnDueDate} onChange={(e) => setRemindOnDueDate(e.target.checked)} className="size-4 rounded" />
+              <span>Send reminder on the due date</span>
+            </label>
+
+            <label className="flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer">
+              <input type="checkbox" checked={remindOverdue3} onChange={(e) => setRemindOverdue3(e.target.checked)} className="size-4 rounded" />
+              <span>Send reminder when 3 days overdue</span>
+            </label>
+
+            <label className="flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer">
+              <input type="checkbox" checked={remindOverdue7} onChange={(e) => setRemindOverdue7(e.target.checked)} className="size-4 rounded" />
+              <span>Send reminder when 7 days overdue</span>
+            </label>
+
+            <label className="flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer">
+              <input type="checkbox" checked={remindOverdue14} onChange={(e) => setRemindOverdue14(e.target.checked)} className="size-4 rounded" />
+              <span>Send reminder when 14 days overdue</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Custom Instructions / Bank Details */}
+        <Field id="custom_note" label="Custom Note / Bank Details" hint="Appended to reminder emails and messages.">
+          <Textarea
+            id="custom_note"
+            value={customNote}
+            onChange={(e) => setCustomNote(e.target.value)}
+            placeholder="e.g. Please pay to: Zenith Bank, Account 1012345678, Eminent Clicks Ltd."
+            rows={2}
+          />
+        </Field>
+
+        {/* Check Now / Diagnostics */}
+        <div className="border-t pt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium">Test Scheduler Claim</p>
+              <p className="text-[11px] text-muted-foreground">Scan your active invoices for due reminders right now.</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={handleRunCheck} disabled={checking}>
+              {checking ? "Checking..." : "Check Invoices Now"}
+            </Button>
+          </div>
+          {checkResult && (
+            <p className="mt-2 text-xs font-medium text-foreground bg-muted p-2 rounded">
+              {checkResult}
+            </p>
+          )}
+        </div>
       </div>
     </FormDialog>
   );

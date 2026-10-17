@@ -12,32 +12,7 @@ ALTER TABLE public.pc_invoices
   ADD COLUMN IF NOT EXISTS source_job_id uuid REFERENCES public.jf_jobs(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS source_quote_id uuid REFERENCES public.jf_quotes(id) ON DELETE SET NULL;
 
--- 2. Safe backfill for existing invoices (handles paid, cancelled, unpaid, draft, sent)
-UPDATE public.pc_invoices inv
-SET balance_kobo = CASE
-  WHEN inv.status = 'paid' THEN 0
-  WHEN inv.status = 'cancelled' THEN 0
-  ELSE GREATEST(0, inv.amount_kobo - COALESCE(
-    (SELECT SUM(p.amount_kobo) FROM public.pc_payments p WHERE p.invoice_id = inv.id AND p.user_id = inv.user_id),
-    0
-  ))
-END
-WHERE inv.balance_kobo IS NULL;
-
--- 3. Set default for future inserts
-ALTER TABLE public.pc_invoices
-  ALTER COLUMN balance_kobo SET DEFAULT 0;
-
--- 4. Enforce idempotency: prevent duplicate invoices for the same job or quote
-CREATE UNIQUE INDEX IF NOT EXISTS pc_invoices_user_source_job_idx
-  ON public.pc_invoices (user_id, source_job_id)
-  WHERE source_job_id IS NOT NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS pc_invoices_user_source_quote_idx
-  ON public.pc_invoices (user_id, source_quote_id)
-  WHERE source_quote_id IS NOT NULL;
-
--- 5. Customer Payments ledger (for tracking partial/full invoice payments)
+-- 2. Customer Payments ledger (for tracking partial/full invoice payments)
 -- Note: Completely separate from Eminent Clicks tool subscription receipts (payment_submissions)
 CREATE TABLE IF NOT EXISTS public.pc_payments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -67,6 +42,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS pc_payments_idempotency_key_idx
   ON public.pc_payments (invoice_id, idempotency_key)
   WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pc_payments TO authenticated;
+GRANT ALL ON public.pc_payments TO service_role;
+
 ALTER TABLE public.pc_payments ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
@@ -91,6 +69,32 @@ DO $$ BEGIN
       );
   END IF;
 END $$;
+
+-- 3. Safe backfill for existing invoices (handles paid, cancelled, unpaid, draft, sent)
+UPDATE public.pc_invoices inv
+SET balance_kobo = CASE
+  WHEN inv.status = 'paid' THEN 0
+  WHEN inv.status = 'cancelled' THEN 0
+  ELSE GREATEST(0, inv.amount_kobo - COALESCE(
+    (SELECT SUM(p.amount_kobo) FROM public.pc_payments p WHERE p.invoice_id = inv.id AND p.user_id = inv.user_id),
+    0
+  ))
+END
+WHERE inv.balance_kobo IS NULL;
+
+-- 3. Set default for future inserts
+ALTER TABLE public.pc_invoices
+  ALTER COLUMN balance_kobo SET DEFAULT 0;
+
+-- 4. Enforce idempotency: prevent duplicate invoices for the same job or quote
+CREATE UNIQUE INDEX IF NOT EXISTS pc_invoices_user_source_job_idx
+  ON public.pc_invoices (user_id, source_job_id)
+  WHERE source_job_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS pc_invoices_user_source_quote_idx
+  ON public.pc_invoices (user_id, source_quote_id)
+  WHERE source_quote_id IS NOT NULL;
+
 
 -- 6. Trigger to reject overpayments and serialize concurrent payment attempts
 CREATE OR REPLACE FUNCTION public.validate_payment_not_overpaid()
@@ -231,6 +235,10 @@ CREATE TABLE IF NOT EXISTS public.pc_automation_logs (
 
 CREATE INDEX IF NOT EXISTS pc_automation_logs_user_idx
   ON public.pc_automation_logs (user_id, created_at DESC);
+
+GRANT SELECT, INSERT ON public.pc_automation_logs TO authenticated;
+GRANT ALL ON public.pc_automation_logs TO service_role;
+REVOKE UPDATE, DELETE ON public.pc_automation_logs FROM authenticated;
 
 ALTER TABLE public.pc_automation_logs ENABLE ROW LEVEL SECURITY;
 
