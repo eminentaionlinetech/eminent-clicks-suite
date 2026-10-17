@@ -4,8 +4,9 @@ import type { ToolId } from "@/lib/tools";
 
 export const MONTHLY_FACTOR: Record<string, number> = { weekly: 52 / 12, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12 };
 
-export function invoiceIsOverdue(i: { status: string; due_date: string }) {
-  return i.status !== "paid" && i.status !== "draft" && i.due_date < todayISO();
+export function invoiceIsOverdue(i: { status: string; due_date: string; balance_kobo?: number | null }) {
+  const isPaid = i.status === "paid" || (i.balance_kobo !== undefined && i.balance_kobo !== null && i.balance_kobo <= 0);
+  return !isPaid && i.status !== "draft" && i.due_date < todayISO();
 }
 
 /** Real per-tool summary lines computed from the user's own records (empty → zeros). */
@@ -35,9 +36,11 @@ export async function fetchToolSummary(toolId: ToolId): Promise<{ label: string;
       ];
     }
     case "paychaser": {
-      const { data, error } = await supabase.from("pc_invoices").select("amount_kobo, status, due_date");
+      const { data, error } = await supabase.from("pc_invoices").select("amount_kobo, balance_kobo, status, due_date");
       if (error) throw error;
-      const outstanding = data.filter((i) => i.status !== "paid" && i.status !== "draft").reduce((a, i) => a + i.amount_kobo, 0);
+      const outstanding = data
+        .filter((i) => i.status !== "paid" && i.status !== "draft")
+        .reduce((a, i) => a + (i.balance_kobo ?? i.amount_kobo), 0);
       return [
         { label: "Invoices", value: String(data.length) },
         { label: "Outstanding", value: formatNaira(outstanding) },

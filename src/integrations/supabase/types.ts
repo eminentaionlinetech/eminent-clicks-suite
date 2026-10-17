@@ -440,9 +440,11 @@ export type Database = {
       pc_invoices: {
         Row: {
           amount_kobo: number
+          balance_kobo: number | null
           created_at: string
           customer: string
           customer_email: string | null
+          customer_phone: string | null
           description: string
           due_date: string
           id: string
@@ -450,15 +452,19 @@ export type Database = {
           issue_date: string
           notes: string
           paid_at: string | null
+          source_job_id: string | null
+          source_quote_id: string | null
           status: string
           updated_at: string
           user_id: string
         }
         Insert: {
           amount_kobo: number
+          balance_kobo?: number | null
           created_at?: string
           customer: string
           customer_email?: string | null
+          customer_phone?: string | null
           description?: string
           due_date: string
           id?: string
@@ -466,15 +472,19 @@ export type Database = {
           issue_date: string
           notes?: string
           paid_at?: string | null
+          source_job_id?: string | null
+          source_quote_id?: string | null
           status?: string
           updated_at?: string
           user_id?: string
         }
         Update: {
           amount_kobo?: number
+          balance_kobo?: number | null
           created_at?: string
           customer?: string
           customer_email?: string | null
+          customer_phone?: string | null
           description?: string
           due_date?: string
           id?: string
@@ -482,6 +492,8 @@ export type Database = {
           issue_date?: string
           notes?: string
           paid_at?: string | null
+          source_job_id?: string | null
+          source_quote_id?: string | null
           status?: string
           updated_at?: string
           user_id?: string
@@ -490,41 +502,201 @@ export type Database = {
       }
       pc_reminders: {
         Row: {
+          attempt_count: number
           channel: string
           created_at: string
+          error_message: string | null
           id: string
+          idempotency_key: string | null
           invoice_id: string
+          last_attempt_at: string
           note: string
+          provider_message_id: string | null
+          recipient: string
           recorded_at: string
+          retry_after: string | null
           stage: string
+          status: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          attempt_count?: number
           channel?: string
           created_at?: string
+          error_message?: string | null
           id?: string
+          idempotency_key?: string | null
           invoice_id: string
+          last_attempt_at?: string
           note?: string
+          provider_message_id?: string | null
+          recipient?: string
           recorded_at?: string
+          retry_after?: string | null
           stage: string
+          status?: string
           updated_at?: string
           user_id?: string
         }
         Update: {
+          attempt_count?: number
           channel?: string
           created_at?: string
+          error_message?: string | null
           id?: string
+          idempotency_key?: string | null
           invoice_id?: string
+          last_attempt_at?: string
           note?: string
+          provider_message_id?: string | null
+          recipient?: string
           recorded_at?: string
+          retry_after?: string | null
           stage?: string
+          status?: string
           updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "pc_reminders_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "pc_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pc_reminder_settings: {
+        Row: {
+          created_at: string
+          custom_note: string
+          days_before_due: number
+          email_enabled: boolean
+          remind_before_due: boolean
+          remind_on_due_date: boolean
+          remind_overdue_14: boolean
+          remind_overdue_3: boolean
+          remind_overdue_7: boolean
+          sms_enabled: boolean
+          updated_at: string
+          user_id: string
+          whatsapp_enabled: boolean
+        }
+        Insert: {
+          created_at?: string
+          custom_note?: string
+          days_before_due?: number
+          email_enabled?: boolean
+          remind_before_due?: boolean
+          remind_on_due_date?: boolean
+          remind_overdue_14?: boolean
+          remind_overdue_3?: boolean
+          remind_overdue_7?: boolean
+          sms_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+          whatsapp_enabled?: boolean
+        }
+        Update: {
+          created_at?: string
+          custom_note?: string
+          days_before_due?: number
+          email_enabled?: boolean
+          remind_before_due?: boolean
+          remind_on_due_date?: boolean
+          remind_overdue_14?: boolean
+          remind_overdue_3?: boolean
+          remind_overdue_7?: boolean
+          sms_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+          whatsapp_enabled?: boolean
+        }
+        Relationships: []
+      }
+      pc_payments: {
+        Row: {
+          amount_kobo: number
+          created_at: string
+          id: string
+          idempotency_key: string | null
+          invoice_id: string
+          notes: string
+          payment_date: string
+          payment_method: string
+          recorded_at: string
+          reference: string
+          user_id: string
+        }
+        Insert: {
+          amount_kobo: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id: string
+          notes?: string
+          payment_date?: string
+          payment_method?: string
+          recorded_at?: string
+          reference?: string
+          user_id?: string
+        }
+        Update: {
+          amount_kobo?: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id?: string
+          notes?: string
+          payment_date?: string
+          payment_method?: string
+          recorded_at?: string
+          reference?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pc_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "pc_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pc_automation_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json
+          id: string
+          invoice_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json
+          id?: string
+          invoice_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json
+          id?: string
+          invoice_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pc_automation_logs_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "pc_invoices"
@@ -753,6 +925,52 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_due_invoice_reminders: {
+        Args: {
+          p_limit?: number
+        }
+        Returns: {
+          out_amount_kobo: number
+          out_attempt_count: number
+          out_balance_kobo: number
+          out_channel: string
+          out_customer_email: string
+          out_customer_name: string
+          out_customer_phone: string
+          out_custom_note: string
+          out_due_date: string
+          out_invoice_id: string
+          out_reminder_id: string
+          out_stage: string
+          out_user_id: string
+        }[]
+      }
+      record_reminder_delivery_result: {
+        Args: {
+          p_error_message?: string | null
+          p_provider_message_id?: string | null
+          p_reminder_id: string
+          p_status: string
+        }
+        Returns: undefined
+      }
+      convert_job_to_invoice: {
+        Args: {
+          _amount_kobo: number
+          _due_date?: string | null
+          _job_id: string
+          _notes?: string | null
+        }
+        Returns: string
+      }
+      convert_quote_to_invoice: {
+        Args: {
+          _due_date?: string | null
+          _notes?: string | null
+          _quote_id: string
+        }
+        Returns: string
+      }
       approve_payment: { Args: { _payment_id: string }; Returns: Json }
       has_role: {
         Args: {
