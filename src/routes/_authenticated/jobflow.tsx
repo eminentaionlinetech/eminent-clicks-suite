@@ -1,3 +1,4 @@
+import { dispatchInvoiceEmail } from "@/lib/email-service";
 import { useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -260,6 +261,7 @@ function ConvertJobDialog({ job, onClose, onSuccess }: { job: Job; onClose: () =
     return d.toISOString().slice(0, 10);
   });
   const [notes, setNotes] = useState(job.notes || "");
+  const [autoEmail, setAutoEmail] = useState(Boolean(job.client_email));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -282,7 +284,31 @@ function ConvertJobDialog({ job, onClose, onSuccess }: { job: Job; onClose: () =
       toast.error(friendlyError(rpcErr, "Couldn't create invoice from this job."));
       return;
     }
-    toast.success(`Invoice created in PayChaser for ${job.client_name}.`);
+
+    if (autoEmail && job.client_email && invId) {
+      const emailRes = await dispatchInvoiceEmail({
+        invoiceId: String(invId),
+        customerEmail: job.client_email,
+        customerName: job.client_name,
+        invoiceNumber: `INV-${job.client_name.slice(0, 3).toUpperCase()}`,
+        amountKobo: kobo,
+        balanceKobo: kobo,
+        dueDate,
+        jobTitle: job.title,
+        notes: notes.trim() || undefined,
+      });
+
+      if (emailRes.status === "delivered") {
+        toast.success(`Invoice created & emailed to ${job.client_email}!`);
+      } else if (emailRes.status === "not_configured") {
+        toast.success(`Invoice created in PayChaser. (Automated email pending backend setup)`);
+      } else {
+        toast.success(`Invoice created in PayChaser for ${job.client_name}.`);
+      }
+    } else {
+      toast.success(`Invoice created in PayChaser for ${job.client_name}.`);
+    }
+
     onSuccess();
     onClose();
   }
@@ -308,6 +334,24 @@ function ConvertJobDialog({ job, onClose, onSuccess }: { job: Job; onClose: () =
       <Field id="inv_notes" label="Invoice Notes" hint="Optional">
         <Textarea id="inv_notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Bank details, terms, or job notes..." />
       </Field>
+      {job.client_email ? (
+        <div className="rounded-lg border bg-muted/30 p-3 mt-2">
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoEmail}
+              onChange={(e) => setAutoEmail(e.target.checked)}
+              className="mt-0.5 size-4 rounded border-input"
+            />
+            <div className="text-xs">
+              <span className="font-medium text-foreground">Automatically email invoice to client</span>
+              <p className="text-muted-foreground pt-0.5">
+                Sends branded invoice from <span className="font-mono text-[11px]">notifications@eminentclick.com.ng</span> to {job.client_email}.
+              </p>
+            </div>
+          </label>
+        </div>
+      ) : null}
     </FormDialog>
   );
 }

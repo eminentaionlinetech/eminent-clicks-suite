@@ -679,7 +679,9 @@ function AutomatedRemindersSettings({ onClose }: { onClose: () => void }) {
           <div className="grid gap-1.5 pt-1 text-muted-foreground">
             <div className="flex items-center justify-between">
               <span>📧 Email (Resend)</span>
-              <span className="text-[11px] font-mono rounded bg-amber-500/10 text-amber-600 px-1.5 py-0.5">Requires RESEND_API_KEY</span>
+              <span className="text-[11px] font-mono rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5">
+                From: notifications@eminentclick.com.ng
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span>💬 WhatsApp (Meta Cloud API)</span>
@@ -691,7 +693,7 @@ function AutomatedRemindersSettings({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <p className="text-[11px] text-muted-foreground/80 pt-1">
-            Channels without configured backend secrets are marked as \"Not Configured\" and will not send live messages.
+            Verified Sender: <strong className="text-foreground">Eminent Clicks &lt;notifications@eminentclick.com.ng&gt;</strong>. Add RESEND_API_KEY to Supabase Edge Function Secrets to activate live sending.
           </p>
         </div>
 
