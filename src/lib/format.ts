@@ -61,7 +61,8 @@ const ERROR_MAP: Record<string, string> = {
   not_pending: "This payment has already been reviewed.",
   reason_required: "Please provide a reason for rejection.",
   amount_mismatch: "The payment amount doesn't match the tool price.",
-  tool_not_unlocked: "PayChaser is not unlocked on your account. Please unlock it to create invoices.",
+  tool_not_unlocked:
+    "PayChaser is not unlocked on your account. Please unlock it to create invoices.",
   job_not_found: "The selected job could not be found.",
   quote_not_found: "The selected quote could not be found.",
   overpayment_rejected: "Payment amount exceeds the outstanding balance on this invoice.",
@@ -70,9 +71,21 @@ const ERROR_MAP: Record<string, string> = {
 
 /** Map a backend error to a safe, user-friendly message. */
 export function friendlyError(err: unknown, fallback: string) {
-  const msg = err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "";
+  const msg =
+    err && typeof err === "object" && "message" in err
+      ? String((err as { message: unknown }).message)
+      : "";
   for (const key of Object.keys(ERROR_MAP)) if (msg.includes(key)) return ERROR_MAP[key];
   if (msg.includes("duplicate key")) return "A record with these details already exists.";
   if (msg.includes("row-level security")) return "You don't have access to do that.";
+  if (msg.includes("column") && msg.includes("does not exist"))
+    return "Database update required: a necessary column is missing from the database.";
+  if (msg.includes("relation") && msg.includes("does not exist"))
+    return "Database update required: a necessary table is missing from the database.";
+  if (msg.includes("function") && msg.includes("does not exist"))
+    return "Database update required: a necessary database function is missing.";
+  if (msg.includes("permission denied")) return "Permission denied for this operation.";
+  if (msg.includes("not configured") || msg.includes("not_configured"))
+    return "Service not configured: missing required backend settings.";
   return fallback;
 }
