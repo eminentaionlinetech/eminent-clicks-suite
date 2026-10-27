@@ -268,6 +268,89 @@ Deno.serve(async (req) => {
     body = {};
   }
 
+  // Read-only smoke check. Requires a valid signed-in user JWT. This action does not
+  // claim reminder rows, query customer/invoice data, mutate the database, or send mail.
+  if (body?.action === "smoke_test") {
+    if (!token) {
+      return Response.json({ error: "A signed-in user session is required." }, {
+        status: 401,
+        headers: corsHeaders,
+      });
+    }
+
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
+    const { data: { user }, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !user) {
+      return Response.json({ error: "A valid signed-in user session is required." }, {
+        status: 401,
+        headers: corsHeaders,
+      });
+    }
+
+    let rpcCompatible = false;
+    if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const schemaResponse = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+          method: "GET",
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            Accept: "application/openapi+json",
+          },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (schemaResponse.ok) {
+          const schema = await schemaResponse.json();
+          const operation = schema?.paths?.["/rpc/claim_due_invoice_reminders"]?.post;
+          const operationText = JSON.stringify(operation ?? {});
+          rpcCompatible = Boolean(operation) && operationText.includes("p_limit") &&
+            operationText.includes("p_target_user_id");
+        }
+      } catch (_) {
+        // Report only the check result; never include response bodies or credentials.
+      }
+    }
+
+    let resendDomainVerified = false;
+    const fromMatch = RESEND_FROM_EMAIL.match(/<([^>]+)>/) ?? [null, RESEND_FROM_EMAIL];
+    const fromAddress = (fromMatch[1] ?? "").trim();
+    const fromDomain = fromAddress.split("@")[1]?.toLowerCase();
+    if (RESEND_API_KEY && fromDomain) {
+      try {
+        const domainsResponse = await fetch("https://api.resend.com/domains", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (domainsResponse.ok) {
+          const domainsBody = await domainsResponse.json();
+          const domains = Array.isArray(domainsBody?.data) ? domainsBody.data : [];
+          resendDomainVerified = domains.some((domain: { name?: string; status?: string }) =>
+            domain.name?.toLowerCase() === fromDomain && domain.status === "verified"
+          );
+        }
+      } catch (_) {
+        // Report only a boolean. Never expose provider responses or API credentials.
+      }
+    }
+
+    return Response.json({
+      status: "smoke_check_complete",
+      authenticated_user: true,
+      checks: {
+        function_runtime: true,
+        service_role_configured: Boolean(SUPABASE_SERVICE_ROLE_KEY),
+        database_claim_rpc_compatible: rpcCompatible,
+        resend_api_key_configured: Boolean(RESEND_API_KEY),
+        resend_sender_domain_verified: resendDomainVerified,
+      },
+      safety: "read_only_no_invoice_or_payment_access_no_reminder_claims_no_email_sent",
+    }, { status: 200, headers: corsHeaders });
+  }
+
   // 1. Action: Manual Reminder Check from PayChaser UI ("Check Invoices Now")
   if (body?.action === "check_reminders_manual") {
     if (!token) {
