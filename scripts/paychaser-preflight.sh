@@ -6,11 +6,10 @@ set -euo pipefail
 # Target Project Reference: aqnnjcjemhdablsbxlah
 #
 # SAFETY GUARANTEE:
-# - This script performs strictly read-only diagnostics and preflight validation.
-# - It does NOT apply database migrations.
-# - It does NOT deploy Edge Functions.
-# - It does NOT modify or leak secrets, customer records, or invoices.
-# - Any dry-run command is executed with --dry-run and cannot mutate the database.
+# - Strictly read-only diagnostics and preflight validation.
+# - Does NOT apply migrations or execute SQL against production.
+# - Does NOT deploy Edge Functions.
+# - Does NOT modify records or print secret values / tokens.
 # ==============================================================================
 
 EXPECTED_PROJECT_REF="aqnnjcjemhdablsbxlah"
@@ -62,43 +61,70 @@ fi
 CLI_VERSION="$(supabase --version 2>/dev/null || echo "installed")"
 echo "      Supabase CLI is available (${CLI_VERSION})."
 
-# 5. Check Supabase CLI authentication and project link
+# 5. Check Supabase CLI authentication and remote project link
 echo "[5/6] Checking Supabase CLI authentication and linked project..."
 
-# Test if Supabase CLI has an active login session or access token
-AUTH_CHECK_OUTPUT="$(supabase projects list 2>&1 || true)"
-if echo "${AUTH_CHECK_OUTPUT}" | grep -iqE "not logged in|login|unauthorized|unauthenticated|access token"; then
+# Step 5a: Verify authentication via exit code of 'supabase projects list'
+AUTH_OUTPUT=""
+if ! AUTH_OUTPUT="$(supabase projects list 2>&1)"; then
   echo "      --------------------------------------------------------"
-  echo "      STATUS: Supabase CLI is NOT authenticated."
-  echo "      Explanation: A valid Supabase CLI session is required to perform remote checks."
-  echo "      Action required: Run 'supabase login' to authenticate your CLI."
+  echo "      STATUS: Supabase CLI authentication check failed."
+  echo "      Explanation: 'supabase projects list' exited with non-zero status."
+  echo "      Action required: Run 'supabase login' or configure SUPABASE_ACCESS_TOKEN."
   echo "      Exiting safely without attempting remote database operations."
   echo "      --------------------------------------------------------"
-  exit 0
+  exit 2
 fi
 
-# Check if CLI is linked to the intended project reference
-LINK_STATUS_OUTPUT="$(supabase status 2>&1 || true)"
-if ! echo "${AUTH_CHECK_OUTPUT} ${LINK_STATUS_OUTPUT}" | grep -q "${EXPECTED_PROJECT_REF}"; then
-  echo "      --------------------------------------------------------"
-  echo "      STATUS: Supabase CLI is authenticated, but not linked to ${EXPECTED_PROJECT_REF}."
-  echo "      Action required: Run 'supabase link --project-ref ${EXPECTED_PROJECT_REF}'"
-  echo "      Exiting safely without attempting remote database operations."
-  echo "      --------------------------------------------------------"
-  exit 0
+# Step 5b: Verify linked project reference
+# In Supabase CLI, 'supabase link' writes the linked project ref to supabase/.temp/project-ref
+# Fallback inspection checks if 'supabase projects list' contains the expected ref
+LINKED_PROJECT_REF=""
+if [ -f "supabase/.temp/project-ref" ]; then
+  LINKED_PROJECT_REF="$(tr -d '[:space:]' < "supabase/.temp/project-ref")"
 fi
-echo "      Authenticated and linked to project: ${EXPECTED_PROJECT_REF}"
+
+if [ -n "${LINKED_PROJECT_REF}" ]; then
+  if [ "${LINKED_PROJECT_REF}" != "${EXPECTED_PROJECT_REF}" ]; then
+    echo "      --------------------------------------------------------"
+    echo "      ERROR: Linked project is '${LINKED_PROJECT_REF}', expected '${EXPECTED_PROJECT_REF}'." >&2
+    echo "      Action required: Run 'supabase link --project-ref ${EXPECTED_PROJECT_REF}'" >&2
+    echo "      --------------------------------------------------------" >&2
+    exit 3
+  fi
+  echo "      Verified linked project from supabase/.temp/project-ref: ${LINKED_PROJECT_REF}"
+else
+  # If local link marker is missing, check if expected project is present in projects list
+  if ! echo "${AUTH_OUTPUT}" | grep -q "${EXPECTED_PROJECT_REF}"; then
+    echo "      --------------------------------------------------------"
+    echo "      ERROR: Project '${EXPECTED_PROJECT_REF}' not found in active account projects list." >&2
+    echo "      Action required: Run 'supabase link --project-ref ${EXPECTED_PROJECT_REF}'" >&2
+    echo "      --------------------------------------------------------" >&2
+    exit 3
+  fi
+  echo "      Target project '${EXPECTED_PROJECT_REF}' is verified in active account."
+fi
 
 # 6. Database migration dry-run (strictly read-only)
-echo "[6/6] Executing migration dry-run (--dry-run)..."
+echo "[6/6] Executing migration dry-run (--dry-run --linked)..."
 echo "      NOTE: --dry-run simulates the migration diff. It CANNOT apply SQL or modify data."
-echo "      Dry-run output:"
 echo "      --------------------------------------------------------"
-DRY_RUN_OUTPUT="$(supabase db push --dry-run --linked 2>&1 || true)"
+
+set +e
+DRY_RUN_OUTPUT="$(supabase db push --dry-run --linked 2>&1)"
+DRY_RUN_STATUS=$?
+set -e
+
 echo "${DRY_RUN_OUTPUT}"
 echo "      --------------------------------------------------------"
-echo "      Dry-run simulation finished."
 
+if [ "${DRY_RUN_STATUS}" -ne 0 ]; then
+  echo "      ERROR: Database migration dry-run failed with exit code ${DRY_RUN_STATUS}." >&2
+  echo "      Review the output above for schema or connectivity errors." >&2
+  exit 4
+fi
+
+echo "      Dry-run simulation succeeded with exit code 0."
 echo "=========================================================="
 echo "  PayChaser Preflight Check Complete (No data was modified)"
 echo "=========================================================="
