@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
+import markAsset from "@/assets/eminent-clicks-mark.png.asset.json";
 
 /** Round logo mark. Long-press (1.5s) is a hidden navigation shortcut to /admin; access is still verified by the backend. */
 export function LogoMark({ className, adminShortcut = false }: { className?: string; adminShortcut?: boolean }) {
@@ -20,13 +21,10 @@ export function LogoMark({ className, adminShortcut = false }: { className?: str
       onPointerUp={cancel}
       onPointerLeave={cancel}
       onContextMenu={(e) => adminShortcut && e.preventDefault()}
-      className={cn(
-        "inline-flex h-9 w-9 shrink-0 select-none items-center justify-center rounded-full bg-primary font-display text-sm font-bold text-primary-foreground ring-4 ring-primary/15",
-        className,
-      )}
+      className={cn("inline-flex h-9 w-9 shrink-0 select-none items-center justify-center", className)}
       aria-hidden="true"
     >
-      EC
+      <img src={markAsset.url} alt="" className="h-full w-full object-contain" draggable={false} />
     </span>
   );
 }

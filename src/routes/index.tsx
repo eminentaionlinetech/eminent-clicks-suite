@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/Logo";
 import { TOOLS, BANK_DETAILS } from "@/lib/tools";
 import { formatNaira } from "@/lib/format";
+import logoAsset from "@/assets/eminent-clicks-logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -26,14 +27,17 @@ function Landing() {
           <Button asChild><Link to="/register">Create account</Link></Button>
         </div>
       </header>
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
-        <p className="text-sm font-semibold uppercase tracking-wider text-primary">One login · Pay once · Unlock your tool</p>
-        <h1 className="mt-3 max-w-3xl font-display text-4xl font-semibold leading-tight sm:text-6xl">Simple tools that keep your business organised.</h1>
-        <p className="mt-5 max-w-xl text-lg text-muted-foreground">Track subscriptions, jobs, invoices, profit and claims. Pay by bank transfer, upload your receipt, and we unlock your tool once it's verified.</p>
-        <div className="mt-8 flex gap-3">
-          <Button asChild size="lg"><Link to="/register">Get started</Link></Button>
-          <Button asChild size="lg" variant="outline"><Link to="/login">I have an account</Link></Button>
+      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:py-24 lg:grid-cols-[1.15fr_1fr]">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wider text-primary">One login · Pay once · Unlock your tool</p>
+          <h1 className="mt-3 max-w-3xl font-display text-4xl font-semibold leading-tight sm:text-5xl">Simple tools that keep your business organised.</h1>
+          <p className="mt-5 max-w-xl text-lg text-muted-foreground">Track subscriptions, jobs, invoices, profit and claims. Pay by bank transfer, upload your receipt, and we unlock your tool once it's verified.</p>
+          <div className="mt-8 flex gap-3">
+            <Button asChild size="lg"><Link to="/register">Get started</Link></Button>
+            <Button asChild size="lg" variant="outline"><Link to="/login">I have an account</Link></Button>
+          </div>
         </div>
+        <img src={logoAsset.url} alt="Eminent Clicks — Business Tools. Real Solutions." width={768} height={512} className="w-full rounded-3xl shadow-card" />
       </section>
       <section className="mx-auto grid max-w-6xl gap-4 px-4 pb-16 sm:grid-cols-2 lg:grid-cols-3">
         {TOOLS.map((t) => (
