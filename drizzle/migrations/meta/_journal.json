@@ -8,6 +8,13 @@
       "when": 1791245840539,
       "tag": "0000_add_customer_email",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793636742095,
+      "tag": "0001_phase1_paychaser_jobflow_automation",
+      "breakpoints": true
     }
   ]
 }

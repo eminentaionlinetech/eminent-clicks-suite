@@ -437,12 +437,52 @@ export type Database = {
           },
         ]
       }
+      pc_automation_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json
+          id: string
+          invoice_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json
+          id?: string
+          invoice_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json
+          id?: string
+          invoice_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pc_automation_logs_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "pc_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pc_invoices: {
         Row: {
           amount_kobo: number
+          balance_kobo: number | null
           created_at: string
           customer: string
           customer_email: string | null
+          customer_phone: string | null
           description: string
           due_date: string
           id: string
@@ -450,15 +490,19 @@ export type Database = {
           issue_date: string
           notes: string
           paid_at: string | null
+          source_job_id: string | null
+          source_quote_id: string | null
           status: string
           updated_at: string
           user_id: string
         }
         Insert: {
           amount_kobo: number
+          balance_kobo?: number | null
           created_at?: string
           customer: string
           customer_email?: string | null
+          customer_phone?: string | null
           description?: string
           due_date: string
           id?: string
@@ -466,15 +510,19 @@ export type Database = {
           issue_date: string
           notes?: string
           paid_at?: string | null
+          source_job_id?: string | null
+          source_quote_id?: string | null
           status?: string
           updated_at?: string
           user_id?: string
         }
         Update: {
           amount_kobo?: number
+          balance_kobo?: number | null
           created_at?: string
           customer?: string
           customer_email?: string | null
+          customer_phone?: string | null
           description?: string
           due_date?: string
           id?: string
@@ -482,11 +530,78 @@ export type Database = {
           issue_date?: string
           notes?: string
           paid_at?: string | null
+          source_job_id?: string | null
+          source_quote_id?: string | null
           status?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pc_invoices_source_job_id_fkey"
+            columns: ["source_job_id"]
+            isOneToOne: false
+            referencedRelation: "jf_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pc_invoices_source_quote_id_fkey"
+            columns: ["source_quote_id"]
+            isOneToOne: false
+            referencedRelation: "jf_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pc_payments: {
+        Row: {
+          amount_kobo: number
+          created_at: string
+          id: string
+          idempotency_key: string | null
+          invoice_id: string
+          notes: string
+          payment_date: string
+          payment_method: string
+          recorded_at: string
+          reference: string
+          user_id: string
+        }
+        Insert: {
+          amount_kobo: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id: string
+          notes?: string
+          payment_date?: string
+          payment_method?: string
+          recorded_at?: string
+          reference?: string
+          user_id?: string
+        }
+        Update: {
+          amount_kobo?: number
+          created_at?: string
+          id?: string
+          idempotency_key?: string | null
+          invoice_id?: string
+          notes?: string
+          payment_date?: string
+          payment_method?: string
+          recorded_at?: string
+          reference?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pc_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "pc_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pc_reminders: {
         Row: {
@@ -754,6 +869,19 @@ export type Database = {
     }
     Functions: {
       approve_payment: { Args: { _payment_id: string }; Returns: Json }
+      convert_job_to_invoice: {
+        Args: {
+          _amount_kobo: number
+          _due_date?: string
+          _job_id: string
+          _notes?: string
+        }
+        Returns: string
+      }
+      convert_quote_to_invoice: {
+        Args: { _due_date?: string; _notes?: string; _quote_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -762,6 +890,10 @@ export type Database = {
         Returns: boolean
       }
       has_tool: { Args: { _tool: string; _user_id: string }; Returns: boolean }
+      recalculate_single_invoice_balance: {
+        Args: { target_inv_id: string }
+        Returns: undefined
+      }
       reject_payment: {
         Args: { _payment_id: string; _reason: string }
         Returns: Json
