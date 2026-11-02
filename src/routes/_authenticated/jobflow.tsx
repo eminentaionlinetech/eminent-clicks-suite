@@ -274,8 +274,8 @@ function ConvertJobDialog({ job, onClose, onSuccess }: { job: Job; onClose: () =
     const { data: invId, error: rpcErr } = await supabase.rpc("convert_job_to_invoice", {
       _job_id: job.id,
       _amount_kobo: kobo,
-      _due_date: dueDate || null,
-      _notes: notes.trim() || null,
+      _due_date: dueDate || undefined,
+      _notes: notes.trim() || undefined,
     });
     setBusy(false);
     if (rpcErr) {
@@ -568,8 +568,8 @@ function QuotesTab({ quotes, jobs }: { quotes: Quote[]; jobs: Job[] }) {
     setBusyQuoteId(q.id);
     const { error: rpcErr } = await supabase.rpc("convert_quote_to_invoice", {
       _quote_id: q.id,
-      _due_date: null,
-      _notes: q.notes || null,
+      _due_date: undefined,
+      _notes: q.notes || undefined,
     });
     setBusyQuoteId(null);
     if (rpcErr) {
