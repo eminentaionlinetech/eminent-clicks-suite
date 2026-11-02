@@ -15,6 +15,13 @@
       "when": 1793636742095,
       "tag": "0001_phase1_paychaser_jobflow_automation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793636808467,
+      "tag": "0002_paychaser_automatic_reminders",
+      "breakpoints": true
     }
   ]
 }
