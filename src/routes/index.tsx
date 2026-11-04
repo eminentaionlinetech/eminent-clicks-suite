@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/Logo";
 import { TOOLS, BANK_DETAILS } from "@/lib/tools";
 import { formatNaira } from "@/lib/format";
-import logoAsset from "@/assets/eminent-clicks-logo.png.asset.json";
+import logoAsset from "@/assets/eminent-clicks-logo.webp";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -37,7 +37,7 @@ function Landing() {
             <Button asChild size="lg" variant="outline"><Link to="/login">I have an account</Link></Button>
           </div>
         </div>
-        <img src={logoAsset.url} alt="Eminent Clicks — Business Tools. Real Solutions." width={768} height={512} className="w-full rounded-3xl shadow-card" />
+        <img src={logoAsset} alt="Eminent Clicks — Business Tools. Real Solutions." width={768} height={512} className="w-full rounded-3xl shadow-card" />
       </section>
       <section className="mx-auto grid max-w-6xl gap-4 px-4 pb-16 sm:grid-cols-2 lg:grid-cols-3">
         {TOOLS.map((t) => (
