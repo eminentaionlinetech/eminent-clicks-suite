@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Logo } from "@/components/brand/Logo";
-import logoAsset from "@/assets/eminent-clicks-logo.png.asset.json";
+import logoAsset from "@/assets/eminent-clicks-logo.webp";
 
 export function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
   return (

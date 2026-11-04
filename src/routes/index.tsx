@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/Logo";
 import { TOOLS, BANK_DETAILS } from "@/lib/tools";
 import { formatNaira } from "@/lib/format";
-import logoAsset from "@/assets/eminent-clicks-logo.png.asset.json";
+import logoAsset from "@/assets/eminent-clicks-logo.webp";
 
 export const Route = createFileRoute("/")({
   head: () => ({
