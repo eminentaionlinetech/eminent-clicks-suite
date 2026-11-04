@@ -24,7 +24,7 @@ export function LogoMark({ className, adminShortcut = false }: { className?: str
       className={cn("inline-flex h-9 w-9 shrink-0 select-none items-center justify-center", className)}
       aria-hidden="true"
     >
-      <img src={markAsset.url} alt="" className="h-full w-full object-contain" draggable={false} />
+      <img src={markAsset} alt="" className="h-full w-full object-contain" draggable={false} />
     </span>
   );
 }

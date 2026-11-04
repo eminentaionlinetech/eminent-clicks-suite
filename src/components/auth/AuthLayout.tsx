@@ -15,7 +15,7 @@ export function AuthLayout({ title, subtitle, children, footer }: { title: strin
           <p className="mt-4 text-sm leading-relaxed text-ink-foreground/70">
             Business tools for jobs, invoices, subscriptions, financial reports and claims — all from one account.
           </p>
-          <img src={logoAsset.url} alt="Eminent Clicks — Business Tools. Real Solutions." width={768} height={512} className="mt-8 w-72 rounded-xl" />
+          <img src={logoAsset} alt="Eminent Clicks — Business Tools. Real Solutions." width={768} height={512} className="mt-8 w-72 rounded-xl" />
         </div>
         <p className="text-xs text-ink-foreground/50">© {new Date().getFullYear()} Eminent Clicks</p>
       </aside>
