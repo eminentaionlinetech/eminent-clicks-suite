@@ -85,10 +85,10 @@ function stageText(stage: string, dueDate: string): string {
 }
 
 export function buildReminderMessage(invoice: {
-  customer: string;
-  invoice_number: string;
-  amount_kobo: number;
-  balance_kobo: number;
+  customer: string | null;
+  invoice_number: string | null;
+  amount_kobo: number | null;
+  balance_kobo: number | null;
   due_date: string;
 }, task: ReminderTask): string {
   const customer = invoice.customer || task.out_customer_name || "";
@@ -378,7 +378,7 @@ async function recoverStaleTasks(admin: AdminClient, onlyUserId?: string): Promi
     .update({ last_attempt_at: new Date().toISOString(), attempt_count: 1 })
     .eq("status", "sending")
     .lt("last_attempt_at", cutoff)
-    .select("id, invoice_id, user_id, stage, channel, recipient");
+    .select("id, invoice_id, user_id, stage, channel, recipient, attempt_count");
   if (onlyUserId) query = query.eq("user_id", onlyUserId);
   const { data: stale, error } = await query;
   if (error) throw new Error(`Unable to recover stale reminder tasks: ${error.message}`);
@@ -406,15 +406,15 @@ async function recoverStaleTasks(admin: AdminClient, onlyUserId?: string): Promi
       out_customer_name: invoice.customer ?? "",
       out_customer_email: invoice.customer_email ?? "",
       out_customer_phone: invoice.customer_phone ?? "",
-      out_amount_kobo: invoice.amount_kobo,
-      out_balance_kobo: invoice.balance_kobo,
+      out_amount_kobo: Number(invoice.amount_kobo ?? 0),
+      out_balance_kobo: Number(invoice.balance_kobo ?? 0),
       out_due_date: invoice.due_date,
       out_invoice_number: invoice.invoice_number ?? "",
       out_business_name: "",
       out_stage: row.stage,
-      out_channel: row.channel,
+      out_channel: row.channel as ReminderTask["out_channel"],
       out_custom_note: settings?.custom_note ?? "",
-      out_attempt_count: row.attempt_count ?? 1,
+      out_attempt_count: Number(row.attempt_count ?? 1),
     });
   }
   return tasks;
