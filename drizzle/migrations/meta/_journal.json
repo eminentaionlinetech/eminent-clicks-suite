@@ -22,6 +22,13 @@
       "when": 1793636808467,
       "tag": "0002_paychaser_automatic_reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793837330152,
+      "tag": "0003_paychaser_reminder_claim_catchup",
+      "breakpoints": true
     }
   ]
 }
