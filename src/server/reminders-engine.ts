@@ -316,6 +316,49 @@ async function processTask(task: ReminderTask, admin: AdminClient): Promise<Task
   }
 }
 
+/**
+ * Self-healing for "not_configured" rows: once a channel's provider secrets are
+ * present, its Not-Configured rows are released so the stage dispatches again
+ * (the database blocks re-claim for 24h otherwise, and only while unconfigured).
+ * Only rows whose error matches that channel's not-configured reason are reset,
+ * so genuine provider failures are never touched.
+ */
+async function resetNotConfiguredForConfiguredChannels(admin: AdminClient, onlyUserId?: string): Promise<void> {
+  const channels: Array<{ channel: string; marker: string; configured: boolean }> = [
+    {
+      channel: "email",
+      marker: "Email channel not configured%",
+      configured: Boolean(process.env["RESEND_API_KEY"] && process.env["RESEND_FROM_EMAIL"]),
+    },
+    {
+      channel: "whatsapp",
+      marker: "WhatsApp channel not configured%",
+      configured: Boolean(process.env["META_WHATSAPP_TOKEN"] && process.env["META_WHATSAPP_PHONE_NUMBER_ID"]),
+    },
+    {
+      channel: "sms",
+      marker: "SMS channel not configured%",
+      configured: Boolean(process.env["TERMII_API_KEY"] && process.env["TERMII_SENDER_ID"]),
+    },
+  ];
+
+  for (const { channel, marker, configured } of channels) {
+    if (!configured) continue;
+    let query = admin
+      .from("pc_reminders")
+      .update({
+        status: "skipped",
+        error_message: `Channel configured after this attempt — re-dispatching on the next check.`,
+      })
+      .eq("status", "not_configured")
+      .eq("channel", channel)
+      .ilike("error_message", marker);
+    if (onlyUserId) query = query.eq("user_id", onlyUserId);
+    const { error } = await query;
+    if (error) console.error(`[reminders] could not reset not_configured rows for ${channel}:`, error.message);
+  }
+}
+
 /** Claim due tasks through the database function (duplicate-safe). */
 async function claimDueTasks(claimClient: AdminClient, limit: number): Promise<ReminderTask[]> {
   const { data, error } = await claimClient.rpc("claim_due_invoice_reminders", { p_limit: limit });
@@ -388,6 +431,7 @@ export async function runReminderSweep(options: {
   recoverOnlyUserId?: string;
 }): Promise<SweepSummary> {
   const admin = await loadAdmin();
+  await resetNotConfiguredForConfiguredChannels(admin, options.recoverOnlyUserId);
   const claimed = await claimDueTasks(options.claimClient, options.limit ?? 50);
   const recovered = await recoverStaleTasks(admin, options.recoverOnlyUserId);
   const tasks = [...claimed, ...recovered];
