@@ -244,9 +244,9 @@ async function recordResult(
   const { error: dbError } = await admin.rpc("record_reminder_delivery_result", {
     p_reminder_id: task.out_reminder_id,
     p_status: status,
-    p_provider_message_id: providerMessageId ?? null,
-    p_error_message: error ?? null,
-  } as Record<string, unknown>);
+    p_provider_message_id: providerMessageId,
+    p_error_message: error,
+  });
   if (dbError) {
     console.error(`[reminders] failed to persist result for ${task.out_reminder_id}:`, dbError.message);
   }
