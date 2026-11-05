@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDelete, FormDialog, NativeSelect, SearchInput, label } from "@/components/tools/kit";
 import { formatDate, formatDateTime, formatNaira, friendlyError, parseNairaToKobo, todayISO } from "@/lib/format";
 import { invoiceIsOverdue } from "@/lib/summaries";
+import { runMyRemindersNow } from "@/server/reminders-server-fns";
 
 type Invoice = Tables<"pc_invoices">;
 
@@ -644,17 +645,31 @@ function AutomatedRemindersSettings({ onClose }: { onClose: () => void }) {
     setChecking(true);
     setCheckResult(null);
     try {
-      const { data, error } = await supabase.rpc("claim_due_invoice_reminders", { p_limit: 20 });
-      if (error) throw error;
-      const count = data?.length ?? 0;
-      if (count === 0) {
-        setCheckResult("No eligible invoices are due for reminders today.");
-        toast.info("No eligible reminders found today.");
-      } else {
-        setCheckResult(`Identified and claimed ${count} reminder task(s) for backend dispatch.`);
-        toast.success(`Claimed ${count} reminder task(s).`);
-        qc.invalidateQueries({ queryKey: ["paychaser"] });
+      const summary = await runMyRemindersNow();
+      const total = summary.claimed + summary.recovered;
+      if (total === 0) {
+        setCheckResult("No eligible invoices are due for reminders right now.");
+        toast.info("No eligible reminders found right now.");
+        return;
       }
+      const c = summary.counts;
+      const parts: string[] = [];
+      if (c.delivered) parts.push(`${c.delivered} sent`);
+      if (c.failed) parts.push(`${c.failed} failed`);
+      if (c.not_configured) parts.push(`${c.not_configured} channel not configured`);
+      if (c.skipped) parts.push(`${c.skipped} skipped (invoice no longer due)`);
+      const detail = summary.results
+        .filter((r) => r.error && (r.status === "failed" || r.status === "not_configured"))
+        .map((r) => `${r.channel}: ${r.error}`)
+        .slice(0, 3)
+        .join(" · ");
+      setCheckResult(
+        `Checked now — ${total} reminder task(s): ${parts.join(", ") || "processed"}.${detail ? ` (${detail})` : ""}`
+      );
+      if (c.delivered) toast.success(`${c.delivered} reminder(s) dispatched.`);
+      else if (c.not_configured) toast.info("Reminders are due but the delivery channel has no provider configured yet.");
+      else toast.warning("Reminder dispatch attempted, but nothing was delivered. See the details shown.");
+      qc.invalidateQueries({ queryKey: ["paychaser"] });
     } catch (err: any) {
       toast.error(friendlyError(err, "Failed to run reminder check."));
     } finally {
