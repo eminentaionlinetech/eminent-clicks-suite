@@ -96,8 +96,8 @@ export function buildReminderMessage(invoice: {
   const due = formatDate(invoice.due_date);
   const business = task.out_business_name;
   const fromLine = business ? ` from ${business}` : "";
-  const balance = formatNairaFromKobo(invoice.balance_kobo);
-  const total = formatNairaFromKobo(invoice.amount_kobo);
+  const balance = formatNairaFromKobo(Number(invoice.balance_kobo ?? 0));
+  const total = formatNairaFromKobo(Number(invoice.amount_kobo ?? 0));
   const amountLine =
     Number(invoice.balance_kobo) < Number(invoice.amount_kobo)
       ? `Outstanding balance: ${balance} (of ${total} invoiced).`
@@ -246,7 +246,7 @@ async function recordResult(
     p_status: status,
     p_provider_message_id: providerMessageId ?? null,
     p_error_message: error ?? null,
-  });
+  } as Record<string, unknown>);
   if (dbError) {
     console.error(`[reminders] failed to persist result for ${task.out_reminder_id}:`, dbError.message);
   }
