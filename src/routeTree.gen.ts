@@ -25,6 +25,7 @@ import { Route as AuthenticatedPaychaserRouteImport } from './routes/_authentica
 import { Route as AuthenticatedReportsnapRouteImport } from './routes/_authenticated/reportsnap'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSubtrackRouteImport } from './routes/_authenticated/subtrack'
+import { Route as ApiPublicJobsProcessInvoiceRemindersRouteImport } from './routes/api/public/jobs/process-invoice-reminders'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -106,6 +107,12 @@ const AuthenticatedSubtrackRoute = AuthenticatedSubtrackRouteImport.update({
   path: '/subtrack',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicJobsProcessInvoiceRemindersRoute =
+  ApiPublicJobsProcessInvoiceRemindersRouteImport.update({
+    id: '/api/public/jobs/process-invoice-reminders',
+    path: '/api/public/jobs/process-invoice-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/reportsnap': typeof AuthenticatedReportsnapRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/subtrack': typeof AuthenticatedSubtrackRoute
+  '/api/public/jobs/process-invoice-reminders': typeof ApiPublicJobsProcessInvoiceRemindersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -140,6 +148,7 @@ export interface FileRoutesByTo {
   '/reportsnap': typeof AuthenticatedReportsnapRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/subtrack': typeof AuthenticatedSubtrackRoute
+  '/api/public/jobs/process-invoice-reminders': typeof ApiPublicJobsProcessInvoiceRemindersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -159,6 +168,7 @@ export interface FileRoutesById {
   '/_authenticated/reportsnap': typeof AuthenticatedReportsnapRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/subtrack': typeof AuthenticatedSubtrackRoute
+  '/api/public/jobs/process-invoice-reminders': typeof ApiPublicJobsProcessInvoiceRemindersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/reportsnap'
     | '/settings'
     | '/subtrack'
+    | '/api/public/jobs/process-invoice-reminders'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/reportsnap'
     | '/settings'
     | '/subtrack'
+    | '/api/public/jobs/process-invoice-reminders'
   id:
     | '__root__'
     | '/'
@@ -213,6 +225,7 @@ export interface FileRouteTypes {
     | '/_authenticated/reportsnap'
     | '/_authenticated/settings'
     | '/_authenticated/subtrack'
+    | '/api/public/jobs/process-invoice-reminders'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -222,6 +235,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicJobsProcessInvoiceRemindersRoute: typeof ApiPublicJobsProcessInvoiceRemindersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -338,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSubtrackRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/jobs/process-invoice-reminders': {
+      id: '/api/public/jobs/process-invoice-reminders'
+      path: '/api/public/jobs/process-invoice-reminders'
+      fullPath: '/api/public/jobs/process-invoice-reminders'
+      preLoaderRoute: typeof ApiPublicJobsProcessInvoiceRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -377,6 +398,8 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicJobsProcessInvoiceRemindersRoute:
+    ApiPublicJobsProcessInvoiceRemindersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

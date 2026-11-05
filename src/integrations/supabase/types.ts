@@ -947,6 +947,7 @@ export type Database = {
           out_amount_kobo: number
           out_attempt_count: number
           out_balance_kobo: number
+          out_business_name: string
           out_channel: string
           out_custom_note: string
           out_customer_email: string
@@ -954,6 +955,7 @@ export type Database = {
           out_customer_phone: string
           out_due_date: string
           out_invoice_id: string
+          out_invoice_number: string
           out_reminder_id: string
           out_stage: string
           out_user_id: string
