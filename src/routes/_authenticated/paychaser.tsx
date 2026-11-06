@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, BellRing, CheckCircle2, CreditCard, Mail, MessageCircle, Pencil, Plus, Receipt, Wallet } from "lucide-react";
 import { toast } from "sonner";
@@ -14,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDelete, FormDialog, NativeSelect, SearchInput, label } from "@/components/tools/kit";
 import { formatDate, formatDateTime, formatNaira, friendlyError, parseNairaToKobo, todayISO } from "@/lib/format";
 import { invoiceIsOverdue } from "@/lib/summaries";
-import { runMyRemindersNow } from "@/server/reminders-server-fns";
+import { runMyRemindersNow } from "@/lib/reminders.functions";
 
 type Invoice = Tables<"pc_invoices">;
 
@@ -45,6 +46,7 @@ const PAYMENT_METHODS = [
 
 function PayChaser() {
   const qc = useQueryClient();
+  const runMyRemindersNowFn = useServerFn(runMyRemindersNow);
   const q = useQuery({
     queryKey: ["paychaser"],
     queryFn: async () => {
@@ -645,7 +647,7 @@ function AutomatedRemindersSettings({ onClose }: { onClose: () => void }) {
     setChecking(true);
     setCheckResult(null);
     try {
-      const summary = await runMyRemindersNow();
+      const summary = await runMyRemindersNowFn();
       const total = summary.claimed + summary.recovered;
       if (total === 0) {
         setCheckResult("No eligible invoices are due for reminders right now.");

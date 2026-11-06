@@ -10,5 +10,5 @@
 <!-- LOVABLE:END -->
 
 ## Architecture decisions
-- PayChaser scheduled reminders run as a TanStack server route (`/api/public/jobs/process-invoice-reminders`) invoked by a managed HTTP schedule — never a Supabase Edge Function or hand-authored pg_cron HTTP job; the generated `authenticateCronRequest` helper owns caller auth. The dispatcher engine lives in `src/server/reminders-engine.ts` and is shared with the authenticated manual "Check Invoices Now" server function.
+- PayChaser scheduled reminders run as a TanStack server route (`/api/public/jobs/process-invoice-reminders`) invoked by a managed HTTP schedule — never a Supabase Edge Function or hand-authored pg_cron HTTP job; the generated `authenticateCronRequest` helper owns caller auth. The dispatcher engine lives in `src/server/reminders-engine.ts` and is shared with the authenticated manual "Check Invoices Now" server function, whose client-callable RPC wrapper belongs in a `*.functions.ts` module outside `src/server/`.
 - Reminder delivery providers are read from server-only env secrets (RESEND_API_KEY, META_WHATSAPP_TOKEN, TERMII_API_KEY); a channel without its secrets is recorded `not_configured` and must never be reported as delivered.

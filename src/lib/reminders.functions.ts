@@ -9,11 +9,10 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 export const runMyRemindersNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { runReminderSweep } = await import("./reminders-engine");
-    const summary = await runReminderSweep({
+    const { runReminderSweep } = await import("@/server/reminders-engine");
+    return runReminderSweep({
       claimClient: context.supabase,
       limit: 20,
       recoverOnlyUserId: context.userId,
     });
-    return summary;
   });
