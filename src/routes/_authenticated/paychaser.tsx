@@ -46,7 +46,6 @@ const PAYMENT_METHODS = [
 
 function PayChaser() {
   const qc = useQueryClient();
-  const runMyRemindersNowFn = useServerFn(runMyRemindersNow);
   const q = useQuery({
     queryKey: ["paychaser"],
     queryFn: async () => {
@@ -573,6 +572,7 @@ function Reminders({ inv, onClose }: { inv: Invoice; onClose: () => void }) {
 
 function AutomatedRemindersSettings({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
+  const runMyRemindersNowFn = useServerFn(runMyRemindersNow);
   const q = useQuery({
     queryKey: ["paychaser", "reminder_settings"],
     queryFn: async () => {
